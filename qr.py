@@ -37,11 +37,11 @@ SERVICES = {
     'uprava_barveni': 'ÚPRAVA A BARVENÍ',
     'laminace_ras': 'LAMINACE ŘAS',
     'uprava': 'ÚPRAVA',
-    'zesvetleni_uprava_tonovani': 'ZESVĚTLENÍ S ÚPRAVOU A TONOVÁNÍM',
-    'laminace_uprava_tonovani': 'LAMINACE S ÚPRAVOU A TONOVÁNÍM',
+    'zesvetleni_uprava_tonovani': 'ZES S ÚPRAV A TONOVÁNÍM',
+    'laminace_uprava_tonovani': 'LAMI S ÚPRAV A TONOVÁNÍM',
     'barveni_ras': 'BARVENÍ ŘAS',
-    'laminace_ras_uprava_barveni': 'LAMINACE ŘAS + ÚPRAVA A BARVENÍ OBOČÍ',
-    'laminace_ras_zesvetleni': 'LAMINACE ŘAS + ZESVĚTLENÍ OBOČÍ S TÓNOVÁNÍM',
+    'laminace_ras_uprava_barveni': 'LAMI ŘAS + ÚPR A BARV OBOČÍ',
+    'laminace_ras_zesvetleni': 'LAMI ŘAS + ZESVĚTL OBOČÍ S TÓNOVÁNÍM',
     'laminace_oboci_ras': 'LAMINACE OBOČÍ A ŘAS',
     'liceni_uces': 'LÍČENÍ & ÚČES',
     'liceni': 'LÍČENÍ',
@@ -373,3 +373,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
