@@ -242,7 +242,7 @@ async def handle_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await update.message.reply_text(
             f'💰 Сумма: {formatted_amount} CZK\n\n'
             '💄 Выберите услугу для указания в платеже:\n'
-            '� Нажмите на нужную услугу или "Без указания услуги"',
+            '👇 Нажмите на нужную услугу или "Без указания услуги"',
             reply_markup=get_services_keyboard()
         )
         
@@ -373,6 +373,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
