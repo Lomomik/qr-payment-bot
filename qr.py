@@ -48,9 +48,10 @@ SERVICES = {
     'laminace_oboci_ras': '✨ LAMINACE OBOČÍ A ŘAS',
     'depilace_obliceje': '🌿 DEPILACE OBLIČEJE',
     # Красота и стиль (💄)
-    'liceni_uces': '💄 LÍČENÍ & ÚČES',
-    'liceni': '💄 LÍČENÍ',
-    'uces': '💄 ÚČES',
+    
+    'liceni': '👄 LÍČENÍ',
+    'liceni_uces': '👄 LÍČENÍ & ÚČES',
+    'uces': '👄 ÚČES',
     
 }
 
@@ -138,7 +139,7 @@ async def payment_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     user_stats[user_id] = user_stats.get(user_id, 0) + 1
     
     await update.message.reply_text(
-        '💄 **Создание QR-кода для оплаты**\n\n'
+        '🌿 **Создание QR-кода для оплаты**\n\n'
         '**Шаги:**\n'
         '1️⃣ Посмотрите сумму за услугу в Fresha Partner\n'
         '2️⃣ Введите сумму в кронах (например: 800)\n'
@@ -247,8 +248,8 @@ async def handle_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         # Показываем выбор услуг
         await update.message.reply_text(
             f'💰 Сумма: {formatted_amount} CZK\n\n'
-            '💄 Выберите услугу для указания в платеже:\n'
-            '� Нажмите на нужную услугу или "Без указания услуги"',
+            '🌿 Выберите услугу для указания в платеже:\n'
+            '👇 Нажмите на нужную услугу',
             reply_markup=get_services_keyboard()
         )
         
