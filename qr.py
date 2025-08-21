@@ -41,7 +41,7 @@ SERVICES = {
     'laminace_uprava_tonovani': 'LAMI S ÚPRAV A TONOVÁNÍM',
     'barveni_ras': 'BARVENÍ ŘAS',
     'laminace_ras_uprava_barveni': 'LAMI ŘAS + ÚPR A BARV OBOČÍ',
-    'laminace_ras_zesvetleni': 'LAMI ŘAS + ZESVĚTL OBOČÍ S TÓNOVÁNÍM',
+    'laminace_ras_zesvetleni': 'LAMI ŘAS + ZESV OBOČ S TÓNOVÁNÍM',
     'laminace_oboci_ras': 'LAMINACE OBOČÍ A ŘAS',
     'liceni_uces': 'LÍČENÍ & ÚČES',
     'liceni': 'LÍČENÍ',
@@ -373,4 +373,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
