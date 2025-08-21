@@ -32,21 +32,26 @@ IBAN = 'CZ3230300000003247217010'
 # Статистика
 user_stats = {}
 
-# Услуги салона
+# Услуги салона - группировка по типам с понятными эмодзи
 SERVICES = {
-    'uprava_barveni': 'ÚPRAVA A BARVENÍ',
-    'laminace_ras': 'LAMINACE ŘAS',
-    'uprava': 'ÚPRAVA',
-    'zesvetleni_uprava_tonovani': 'ZESVĚTLENÍ S ÚPRAVOU A TONOVÁNÍM',
-    'laminace_uprava_tonovani': 'LAMINACE S ÚPRAVOU A TONOVÁNÍM',
-    'barveni_ras': 'BARVENÍ ŘAS',
-    'laminace_ras_uprava_barveni': 'LAMINACE ŘAS + ÚPRAVA A BARVENÍ OBOČÍ',
-    'laminace_ras_zesvetleni': 'LAMINACE ŘAS + ZESVĚTLENÍ OBOČÍ S TÓNOVÁNÍM',
-    'laminace_oboci_ras': 'LAMINACE OBOČÍ A ŘAS',
-    'liceni_uces': 'LÍČENÍ & ÚČES',
-    'liceni': 'LÍČENÍ',
-    'depilace_obliceje': 'DEPILACE OBLIČEJE',
-    'uces': 'ÚČES'
+    # Услуги для бровей (🌿)
+    'uprava_barveni': '🌿 ÚPRAVA A BARVENÍ',
+    'uprava': '🌿 ÚPRAVA',
+    'zesvetleni_uprava_tonovani': '🌿 ZESVĚTLENÍ S ÚPRAVOU A TONOVÁNÍM',
+    'laminace_uprava_tonovani': '🌿 LAMINACE S ÚPRAVOU A TONOVÁNÍM',
+    
+    # Услуги для ресниц (👁️ и ✨)
+    'laminace_ras': '👁️ LAMINACE ŘAS',
+    'barveni_ras': '👁️ BARVENÍ ŘAS',
+    'laminace_ras_uprava_barveni': '✨ LAMINACE ŘAS + ÚPRAVA A BARVENÍ OBOČÍ',
+    'laminace_ras_zesvetleni': '✨ LAMINACE ŘAS + ZESVĚTLENÍ OBOČÍ S TÓNOVÁNÍM',
+    'laminace_oboci_ras': '✨ LAMINACE OBOČÍ A ŘAS',
+    'depilace_obliceje': '🌿 DEPILACE OBLIČEJE',
+    # Красота и стиль (💄)
+    'liceni_uces': '💄 LÍČENÍ & ÚČES',
+    'liceni': '💄 LÍČENÍ',
+    'uces': '💄 ÚČES',
+    
 }
 
 def get_main_keyboard():
@@ -62,22 +67,23 @@ def get_services_keyboard():
     keyboard = []
     services_list = list(SERVICES.items())
     
-    # Создаем кнопки по 2 в ряд
-    for i in range(0, len(services_list), 2):
-        row = []
-        # Первая кнопка в ряду
+    # Первые услуги по одной в ряд
+    for i in range(len(services_list) - 4):
         service_key, service_name = services_list[i]
-        row.append(InlineKeyboardButton(service_name, callback_data=f"service_{service_key}"))
-        
-        # Вторая кнопка в ряду (если есть)
-        if i + 1 < len(services_list):
-            service_key, service_name = services_list[i + 1]
-            row.append(InlineKeyboardButton(service_name, callback_data=f"service_{service_key}"))
-        
+        keyboard.append([InlineKeyboardButton(service_name, callback_data=f"service_{service_key}")])
+    
+    # Последние 4 услуги в 2 ряда по 2
+    last_four = services_list[-4:]
+    for i in range(0, 4, 2):
+        row = []
+        for j in range(2):
+            if i + j < len(last_four):
+                service_key, service_name = last_four[i + j]
+                row.append(InlineKeyboardButton(service_name, callback_data=f"service_{service_key}"))
         keyboard.append(row)
     
     # Добавляем кнопку "Без указания услуги"
-    keyboard.append([InlineKeyboardButton("Без указания услуги", callback_data="service_none")])
+    keyboard.append([InlineKeyboardButton("❌ Без указания услуги", callback_data="service_none")])
     
     return InlineKeyboardMarkup(keyboard)
 
@@ -280,8 +286,14 @@ async def handle_service_selection(update: Update, context: ContextTypes.DEFAULT
         caption_service = ''
     else:
         service_name = SERVICES.get(service_key)
-        service_msg = service_name
-        caption_service = f'🛍️ Услуга: {service_name}\n'
+        if service_name:
+            # Убираем эмодзи из названия для QR-кода
+            service_msg = service_name.split(' ', 1)[1] if ' ' in service_name else service_name
+            caption_service = f'🛍️ Услуга: {service_msg}\n'
+        else:
+            service_name = None
+            service_msg = None
+            caption_service = ''
     
     # Генерируем QR-код с услугой
     qr_image = generate_qr_code(amount, service_msg)
