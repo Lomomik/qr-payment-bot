@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Telegram бот для генерации QR-кодов для оплаты услуг салона красоты
-Работает с чешскими банками (Air Bank, Raiffeisenbank CZ)
+ТЕСТОВАЯ версия бота с новыми короткими кнопками
+Загружает .env.test для тестирования
 """
 
 import os
@@ -19,13 +19,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Загружаем переменные окружения
-load_dotenv()
+# Загружаем ТЕСТОВЫЕ переменные окружения
+load_dotenv('.env.test')  # Используем тестовый файл
 
 # Конфигурация
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 ADMIN_TELEGRAM_ID = os.getenv('ADMIN_TELEGRAM_ID')
-OWNER_NAME = os.getenv('OWNER_NAME', 'ULIANA EMELINA')
+OWNER_NAME = os.getenv('OWNER_NAME', 'ULIANA EMELINA (TEST)')
 ACCOUNT_NUMBER = os.getenv('ACCOUNT_NUMBER', '3247217010/3030')
 IBAN = 'CZ3230300000003247217010'
 
@@ -34,13 +34,13 @@ user_stats = {}
 
 # Услуги салона - группировка по типам с понятными эмодзи
 SERVICES = {
-    # Услуги для бровей (🌿)
+    # Услуги для бровей (👁️)
     'uprava_barveni': '🌿 ÚPRAVA A BARVENÍ',
     'uprava': '🌿 ÚPRAVA',
     'zesvetleni_uprava_tonovani': '🌿 ZESVĚTLENÍ S ÚPRAVOU A TONOVÁNÍM',
     'laminace_uprava_tonovani': '🌿 LAMINACE S ÚPRAVOU A TONOVÁNÍM',
     
-    # Услуги для ресниц (👁️ и ✨)
+    # Услуги для ресниц (✨)
     'laminace_ras': '👁️ LAMINACE ŘAS',
     'barveni_ras': '👁️ BARVENÍ ŘAS',
     'laminace_ras_uprava_barveni': '✨ LAMINACE ŘAS + ÚPRAVA A BARVENÍ OBOČÍ',
@@ -115,20 +115,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_stats[user_id] = user_stats.get(user_id, 0) + 1
     
     await update.message.reply_text(
-        '🌿 Добро пожаловать в систему оплаты салона красоты Noéme!\n\n'
+        '🧪 **ТЕСТОВАЯ ВЕРСИЯ БОТА** 🧪\n'
+        '👄 Добро пожаловать в систему оплаты салона красоты Noéme!\n\n'
         '💰 Этот бот поможет вам быстро создать QR-код для оплаты услуг.\n\n'
         '📱 Как это работает:\n'
         '• Клиент сканирует QR-код своим банковским приложением\n'
         '• Автоматически заполняются все данные для перевода\n'
         '• Остается только подтвердить платеж\n\n'
         '👇 Выберите действие с помощью кнопок ниже:',
-        reply_markup=get_main_keyboard()
+        reply_markup=get_main_keyboard(),
+        parse_mode='Markdown'
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик команды /help"""
     await update.message.reply_text(
-        '📋 **ИНСТРУКЦИЯ ДЛЯ СОТРУДНИКА**\n\n'
+        '📋 **ИНСТРУКЦИЯ ДЛЯ СОТРУДНИКА (ТЕСТ)**\n\n'
         '**Как создать QR-код:**\n'
         '1️⃣ Рассчитайте стоимость услуг\n'
         '2️⃣ Нажмите кнопку "💰 Создать QR-код для оплаты"\n'
@@ -136,7 +138,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         '4️⃣ Выберите услугу из списка или "Без указания услуги"\n'
         '5️⃣ Покажите QR-код клиенту\n'
         '6️⃣ Клиент сканирует код в своем банковском приложении\n\n'
-        '💡 QR-код автоматически заполнит все данные для перевода!',
+        '💡 QR-код автоматически заполнит все данные для перевода!\n\n'
+        '🧪 **ТЕСТИРУЕМ НОВЫЕ КОРОТКИЕ НАЗВАНИЯ КНОПОК**',
         parse_mode='Markdown',
         reply_markup=get_main_keyboard()
     )
@@ -144,7 +147,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик команды /info"""
     await update.message.reply_text(
-        f'📋 **РЕКВИЗИТЫ СЧЕТА САЛОНА**\n\n'
+        f'📋 **РЕКВИЗИТЫ СЧЕТА САЛОНА (ТЕСТ)**\n\n'
         f'👤 **Получатель:** {OWNER_NAME}\n'
         f'🏦 **Номер счета:** {ACCOUNT_NUMBER}\n'
         f'🌍 **IBAN:** {IBAN}\n'
@@ -235,8 +238,10 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             '❓ Используйте кнопки для навигации или команды:\n\n'
             '💰 Создать QR-код - для создания QR-кода\n'
             'ℹ️ Реквизиты счета - для просмотра реквизитов\n'
-            '❓ Помощь - для получения инструкций',
-            reply_markup=get_main_keyboard()
+            '❓ Помощь - для получения инструкций\n\n'
+            '🧪 **Тестовая версия с новыми кнопками**',
+            reply_markup=get_main_keyboard(),
+            parse_mode='Markdown'
         )
 
 async def handle_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -272,11 +277,13 @@ async def handle_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await update.message.reply_text(
             f'💰 Сумма: {formatted_amount} CZK\n\n'
             '🌿 Выберите услугу для указания в платеже:\n'
+            '🧪 **Тестируем новые короткие названия!**\n'
             '👇 Нажмите на нужную услугу',
-            reply_markup=get_services_keyboard()
+            reply_markup=get_services_keyboard(),
+            parse_mode='Markdown'
         )
         
-        logger.info(f"Amount {amount} CZK saved, waiting for service selection, user: {update.effective_user.id}")
+        logger.info(f"TEST BOT: Amount {amount} CZK saved, waiting for service selection, user: {update.effective_user.id}")
         
     except ValueError:
         await update.message.reply_text(
@@ -326,11 +333,13 @@ async def handle_amount_selection(update: Update, context: ContextTypes.DEFAULT_
         await query.edit_message_text(
             f'💰 Сумма: {formatted_amount} CZK\n\n'
             '🌿 Выберите услугу для указания в платеже:\n'
+            '🧪 <b>Тестируем новые короткие названия!</b>\n'
             '👇 Нажмите на нужную услугу',
-            reply_markup=get_services_keyboard()
+            reply_markup=get_services_keyboard(),
+            parse_mode='HTML'
         )
         
-        logger.info(f"Amount {amount} CZK selected via button, waiting for service selection, user: {update.effective_user.id}")
+        logger.info(f"TEST BOT: Amount {amount} CZK selected via button, waiting for service selection, user: {update.effective_user.id}")
         
     except ValueError:
         await query.edit_message_text('❌ Ошибка: неверная сумма.')
@@ -378,13 +387,14 @@ async def handle_service_selection(update: Update, context: ContextTypes.DEFAULT
     await context.bot.send_photo(
         chat_id=query.message.chat_id,
         photo=qr_image,
-        caption=f'🌿 QR-код для оплаты услуг салона\n\n'
+        caption=f'🌿 QR-код для оплаты услуг салона 🧪\n\n'
                f'💰 Сумма: {formatted_amount} CZK\n'
                f'{caption_service}'
                f'👤 Получатель: {OWNER_NAME}\n'
                f'🏦 Счет: {ACCOUNT_NUMBER}\n\n'
                f'📱 Покажите этот QR-код клиенту\n'
-               f'✅ Клиент сканирует код в своем банковском приложении',
+               f'✅ Клиент сканирует код в своем банковском приложении\n\n'
+               f'🧪 **ТЕСТОВАЯ ВЕРСИЯ** - проверяем новые кнопки!',
         reply_markup=get_main_keyboard()
     )
     
@@ -393,7 +403,7 @@ async def handle_service_selection(update: Update, context: ContextTypes.DEFAULT
     context.user_data['amount'] = None
     
     service_log = service_name if service_name else "without service"
-    logger.info(f"QR code generated for amount: {amount} CZK, service: {service_log}, user: {update.effective_user.id}")
+    logger.info(f"TEST BOT: QR code generated for amount: {amount} CZK, service: {service_log}, user: {update.effective_user.id}")
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Статистика использования (только для админа)"""
@@ -406,7 +416,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     total_users = len(user_stats)
     total_requests = sum(user_stats.values())
     
-    stats_text = f'📊 **СТАТИСТИКА БОТА**\n\n'
+    stats_text = f'📊 **СТАТИСТИКА ТЕСТОВОГО БОТА**\n\n'
     stats_text += f'👥 Всего пользователей: {total_users}\n'
     stats_text += f'📱 Всего запросов: {total_requests}\n\n'
     
@@ -422,15 +432,23 @@ async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     """Обработчик неизвестных команд"""
     await update.message.reply_text(
         '❓ Неизвестная команда!\n\n'
-        '👇 Используйте кнопки ниже для навигации:',
-        reply_markup=get_main_keyboard()
+        '👇 Используйте кнопки ниже для навигации:\n\n'
+        '🧪 **Тестовая версия бота**',
+        reply_markup=get_main_keyboard(),
+        parse_mode='Markdown'
     )
 
 def main():
     """Главная функция"""
     if not BOT_TOKEN:
         logger.error("BOT_TOKEN not found in environment variables!")
+        print("❌ Ошибка: BOT_TOKEN не найден!")
+        print("📝 Создайте .env.test файл с токеном тестового бота")
         return
+    
+    print("🧪 Запускаем ТЕСТОВУЮ версию бота...")
+    print(f"🤖 Бот: {BOT_TOKEN[:10]}...")
+    print(f"👤 Владелец: {OWNER_NAME}")
     
     # Создаем приложение
     application = Application.builder().token(BOT_TOKEN).build()
@@ -455,7 +473,8 @@ def main():
     application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
     
     # Запускаем бота
-    logger.info("Starting bot...")
+    logger.info("Starting TEST bot...")
+    print("✅ Тестовый бот запущен! Проверяйте новые кнопки...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
