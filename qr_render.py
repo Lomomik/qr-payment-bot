@@ -15,6 +15,8 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 import asyncio
 from aiohttp import web
 import threading
+import aiohttp
+import time
 
 # Настройка логирования
 logging.basicConfig(
@@ -435,6 +437,31 @@ async def health(request):
     """Health check endpoint для Render"""
     return web.Response(text="Bot is running", status=200)
 
+async def ping_self():
+    """Пингует себя каждые 10 минут чтобы не заснуть"""
+    await asyncio.sleep(300)  # Ждем 5 минут после запуска
+    
+    while True:
+        try:
+            # Получаем URL приложения из переменных окружения или строим его
+            app_url = os.getenv('RENDER_EXTERNAL_URL')
+            if not app_url:
+                # Если URL не задан, пропускаем пинг
+                logger.info("RENDER_EXTERNAL_URL not set, skipping self-ping")
+                await asyncio.sleep(600)  # 10 минут
+                continue
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{app_url}/health", timeout=30) as response:
+                    if response.status == 200:
+                        logger.info("✅ Self-ping successful - keeping app awake")
+                    else:
+                        logger.warning(f"Self-ping returned status {response.status}")
+        except Exception as e:
+            logger.error(f"Self-ping failed: {e}")
+        
+        await asyncio.sleep(600)  # Пинг каждые 10 минут
+
 async def create_web_app():
     """Создает веб-приложение для health checks"""
     app = web.Application()
@@ -451,6 +478,9 @@ def run_web_server():
         site = web.TCPSite(runner, '0.0.0.0', PORT)
         await site.start()
         logger.info(f"Web server started on port {PORT}")
+        
+        # Запускаем автопинг в фоне
+        asyncio.create_task(ping_self())
         
         # Держим сервер запущенным
         while True:
