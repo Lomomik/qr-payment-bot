@@ -487,12 +487,15 @@ def main():
     # Создаем приложение
     application = Application.builder().token(BOT_TOKEN).build()
     
+    # Инициализируем переменную для keep-alive задачи
+    keep_alive_task = None
+    
     # Настройка keep-alive для предотвращения засыпания на Render
     if os.getenv('RENDER') and setup_render_keep_alive:
         try:
             # Запускаем keep-alive после создания application
             keep_alive_coro = setup_render_keep_alive()
-            asyncio.create_task(keep_alive_coro)
+            keep_alive_task = application.create_task(keep_alive_coro)
             logger.info("✅ Render keep-alive activated")
         except Exception as e:
             logger.warning(f"⚠️ Keep-alive setup failed: {e}")
@@ -535,11 +538,12 @@ def main():
         try:
             logger.info("🔄 Starting graceful shutdown...")
             
-            # Останавливаем приложение
-            if hasattr(application, 'stop'):
-                asyncio.run(application.stop())
+            # Останавливаем keep-alive задачу
+            if keep_alive_task and not keep_alive_task.done():
+                keep_alive_task.cancel()
+                logger.info("Keep-alive task cancelled")
             
-            # Останавливаем keep-alive
+            # Останавливаем render keep-alive instance
             if os.getenv('RENDER') and render_keep_alive:
                 render_keep_alive.stop()
             
