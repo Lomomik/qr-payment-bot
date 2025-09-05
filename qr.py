@@ -6,6 +6,7 @@ Telegram бот для генерации QR-кодов для оплаты ус
 
 import os
 import logging
+import asyncio
 import qrcode
 from io import BytesIO
 from dotenv import load_dotenv
@@ -441,18 +442,19 @@ def main():
     
     logger.info("Starting QR Payment Bot...")
     
+    # Создаем приложение
+    application = Application.builder().token(BOT_TOKEN).build()
+    
     # Настройка keep-alive для предотвращения засыпания на Render
     if os.getenv('RENDER') and setup_render_keep_alive:
         try:
-            setup_render_keep_alive()
+            # Запускаем keep-alive после создания application
+            asyncio.create_task(setup_render_keep_alive())
             logger.info("✅ Render keep-alive activated")
         except Exception as e:
             logger.warning(f"⚠️ Keep-alive setup failed: {e}")
     elif os.getenv('RENDER'):
         logger.warning("⚠️ Running on Render but keep-alive module not available")
-    
-    # Создаем приложение
-    application = Application.builder().token(BOT_TOKEN).build()
     
     # Добавляем обработчики команд
     application.add_handler(CommandHandler("start", start))
