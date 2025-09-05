@@ -19,6 +19,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Импорт keep-alive для предотвращения засыпания на Render
+try:
+    from render_keep_alive import setup_render_keep_alive
+except ImportError:
+    logger.warning("render_keep_alive module not found, keep-alive disabled")
+    setup_render_keep_alive = None
+
 # Загружаем переменные окружения
 load_dotenv()
 
@@ -431,6 +438,18 @@ def main():
     if not BOT_TOKEN:
         logger.error("BOT_TOKEN not found in environment variables!")
         return
+    
+    logger.info("Starting QR Payment Bot...")
+    
+    # Настройка keep-alive для предотвращения засыпания на Render
+    if os.getenv('RENDER') and setup_render_keep_alive:
+        try:
+            setup_render_keep_alive()
+            logger.info("✅ Render keep-alive activated")
+        except Exception as e:
+            logger.warning(f"⚠️ Keep-alive setup failed: {e}")
+    elif os.getenv('RENDER'):
+        logger.warning("⚠️ Running on Render but keep-alive module not available")
     
     # Создаем приложение
     application = Application.builder().token(BOT_TOKEN).build()
