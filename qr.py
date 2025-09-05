@@ -7,6 +7,7 @@ Telegram бот для генерации QR-кодов для оплаты ус
 import os
 import logging
 import asyncio
+import time
 import qrcode
 from io import BytesIO
 from dotenv import load_dotenv
@@ -22,10 +23,11 @@ logger = logging.getLogger(__name__)
 
 # Импорт keep-alive для предотвращения засыпания на Render
 try:
-    from render_keep_alive import setup_render_keep_alive
+    from render_keep_alive import setup_render_keep_alive, render_keep_alive
 except ImportError:
     logger.warning("render_keep_alive module not found, keep-alive disabled")
     setup_render_keep_alive = None
+    render_keep_alive = None
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -440,6 +442,21 @@ def main():
         logger.error("BOT_TOKEN not found in environment variables!")
         return
     
+    # Проверяем единственность экземпляра на Render
+    lock_file = '/tmp/qr_bot.lock' if os.getenv('RENDER') else None
+    
+    if lock_file:
+        try:
+            if os.path.exists(lock_file):
+                logger.warning("⚠️ Bot lock file exists, removing stale lock...")
+                os.remove(lock_file)
+            
+            # Создаем lock файл
+            with open(lock_file, 'w') as f:
+                f.write(str(os.getpid()))
+        except Exception as e:
+            logger.warning(f"⚠️ Could not create lock file: {e}")
+    
     logger.info("Starting QR Payment Bot...")
     
     # Создаем приложение
@@ -478,7 +495,28 @@ def main():
     
     # Запускаем бота
     logger.info("Starting bot...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    
+    try:
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
+    except KeyboardInterrupt:
+        logger.info("Received interrupt signal, shutting down gracefully...")
+    except Exception as e:
+        logger.error(f"Bot error: {e}")
+    finally:
+        # Останавливаем keep-alive
+        if os.getenv('RENDER') and render_keep_alive:
+            render_keep_alive.stop()
+        
+        # Удаляем lock файл
+        lock_file = '/tmp/qr_bot.lock' if os.getenv('RENDER') else None
+        if lock_file and os.path.exists(lock_file):
+            try:
+                os.remove(lock_file)
+                logger.info("🗑️ Lock file removed")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not remove lock file: {e}")
+        
+        logger.info("Bot stopped.")
 
 if __name__ == '__main__':
     main()
