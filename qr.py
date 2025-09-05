@@ -449,7 +449,8 @@ def main():
     if os.getenv('RENDER') and setup_render_keep_alive:
         try:
             # Запускаем keep-alive после создания application
-            asyncio.create_task(setup_render_keep_alive())
+            keep_alive_coro = setup_render_keep_alive()
+            asyncio.create_task(keep_alive_coro)
             logger.info("✅ Render keep-alive activated")
         except Exception as e:
             logger.warning(f"⚠️ Keep-alive setup failed: {e}")

@@ -15,10 +15,10 @@ logger = logging.getLogger(__name__)
 class RenderKeepAlive:
     """Класс для поддержания активности Render сервиса"""
     
-    def __init__(self, app_url: str = None, ping_interval: int = 600):
+    def __init__(self, app_url: str = None, ping_interval: int = 300):
         """
         :param app_url: URL вашего Render приложения
-        :param ping_interval: Интервал пинга в секундах (по умолчанию 10 минут)
+        :param ping_interval: Интервал пинга в секундах (по умолчанию 5 минут)
         """
         self.app_url = app_url or os.getenv('RENDER_EXTERNAL_URL', 'http://localhost:8080')
         self.ping_interval = ping_interval
@@ -50,8 +50,8 @@ class RenderKeepAlive:
         
         self.is_running = True
         
-        # Ждем 2 минуты перед первым пингом (дает время боту запуститься)
-        await asyncio.sleep(120)
+        # Ждем 30 секунд перед первым пингом (дает время боту запуститься)
+        await asyncio.sleep(30)
         
         while self.is_running:
             await self.ping_self()
@@ -108,44 +108,6 @@ def create_flask_health_endpoint():
     except ImportError:
         logger.warning("Flask not available, skipping health endpoint")
 
-# Health endpoint для FastAPI (если используете FastAPI)
-def create_fastapi_health_endpoint():
-    """Создает FastAPI приложение с health endpoint"""
-    try:
-        from fastapi import FastAPI
-        import uvicorn
-        import threading
-        
-        app = FastAPI()
-        
-        @app.get("/health")
-        async def health():
-            return {
-                "status": "ok",
-                "service": "qr-payment-bot", 
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        @app.get("/")
-        async def home():
-            return {
-                "message": "QR Payment Bot is running",
-                "status": "active",
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        def run_fastapi():
-            uvicorn.run(app, host="0.0.0.0", port=int(os.getenv('PORT', 8080)))
-        
-        # Запуск FastAPI в отдельном потоке
-        fastapi_thread = threading.Thread(target=run_fastapi, daemon=True)
-        fastapi_thread.start()
-        
-        logger.info("🌐 FastAPI health endpoint started on port 8080")
-        
-    except ImportError:
-        logger.warning("FastAPI/uvicorn not available, skipping health endpoint")
-
 # Простой HTTP сервер (если нет Flask/FastAPI)
 def create_simple_health_endpoint():
     """Создает простой HTTP сервер с health endpoint"""
@@ -200,6 +162,7 @@ def setup_render_keep_alive(app_url: str = None):
     Настройка keep-alive для Render
     
     :param app_url: URL вашего Render приложения (например: https://your-app.onrender.com)
+    :return: корутину для запуска в asyncio.create_task()
     """
     
     # Определяем URL автоматически для Render
@@ -207,7 +170,7 @@ def setup_render_keep_alive(app_url: str = None):
         app_url = os.getenv('RENDER_EXTERNAL_URL')
         if not app_url and os.getenv('RENDER'):
             # Пытаемся определить URL по имени сервиса
-            service_name = os.getenv('RENDER_SERVICE_NAME', 'qr-bot')
+            service_name = os.getenv('RENDER_SERVICE_NAME', 'qr-payment-bot')
             app_url = f"https://{service_name}.onrender.com"
     
     if app_url:
@@ -217,13 +180,11 @@ def setup_render_keep_alive(app_url: str = None):
     # Создаем health endpoint
     if os.getenv('FLASK_APP'):
         create_flask_health_endpoint()
-    elif 'fastapi' in str(os.getenv('PYTHON_PATH', '')):
-        create_fastapi_health_endpoint()
     else:
         create_simple_health_endpoint()
     
-    # Запускаем keep-alive
-    render_keep_alive.start()
+    # Возвращаем корутину для запуска
+    return render_keep_alive.keep_alive_loop()
 
 if __name__ == "__main__":
     # Тестовый запуск
