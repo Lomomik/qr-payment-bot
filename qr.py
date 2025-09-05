@@ -484,23 +484,11 @@ def main():
     
     logger.info("Starting QR Payment Bot...")
     
-    # Создаем приложение
-    application = Application.builder().token(BOT_TOKEN).build()
-    
     # Инициализируем переменную для keep-alive задачи
     keep_alive_task = None
     
-    # Настройка keep-alive для предотвращения засыпания на Render
-    if os.getenv('RENDER') and setup_render_keep_alive:
-        try:
-            # Запускаем keep-alive после создания application
-            keep_alive_coro = setup_render_keep_alive()
-            keep_alive_task = application.create_task(keep_alive_coro)
-            logger.info("✅ Render keep-alive activated")
-        except Exception as e:
-            logger.warning(f"⚠️ Keep-alive setup failed: {e}")
-    elif os.getenv('RENDER'):
-        logger.warning("⚠️ Running on Render but keep-alive module not available")
+    # Создаем приложение БЕЗ post_init callback
+    application = Application.builder().token(BOT_TOKEN).build()
     
     # Добавляем обработчики команд
     application.add_handler(CommandHandler("start", start))
@@ -524,41 +512,76 @@ def main():
     # Добавляем обработчик ошибок (Context7 рекомендация)
     application.add_error_handler(error_handler)
     
-    # Запускаем бота
+    # Запускаем бота с manual lifecycle management согласно Context7
     logger.info("Starting bot...")
     
-    try:
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
-    except KeyboardInterrupt:
-        logger.info("Received interrupt signal, shutting down gracefully...")
-    except Exception as e:
-        logger.error(f"Bot error: {e}")
-    finally:
-        # Graceful shutdown согласно Context7 рекомендациям
+    async def run_bot():
+        """Manual lifecycle management согласно Context7 рекомендациям"""
+        nonlocal keep_alive_task
+        
         try:
+            # Manual initialization
+            await application.initialize()
+            await application.start()
+            await application.updater.start_polling()
+            
+            # Настройка keep-alive ПОСЛЕ запуска event loop
+            if os.getenv('RENDER') and setup_render_keep_alive:
+                try:
+                    keep_alive_coro = setup_render_keep_alive()
+                    keep_alive_task = asyncio.create_task(keep_alive_coro)
+                    logger.info("✅ Render keep-alive activated after event loop start")
+                except Exception as e:
+                    logger.warning(f"⚠️ Keep-alive setup failed: {e}")
+            elif os.getenv('RENDER'):
+                logger.warning("⚠️ Running on Render but keep-alive module not available")
+            
+            # Держим бота активным
+            logger.info("🤖 Bot is running... Press Ctrl+C to stop")
+            try:
+                # Бесконечный цикл для поддержания работы
+                while True:
+                    await asyncio.sleep(1)
+            except KeyboardInterrupt:
+                logger.info("Received interrupt signal, shutting down gracefully...")
+                
+        finally:
+            # Manual shutdown
             logger.info("🔄 Starting graceful shutdown...")
             
             # Останавливаем keep-alive задачу
             if keep_alive_task and not keep_alive_task.done():
                 keep_alive_task.cancel()
-                logger.info("Keep-alive task cancelled")
+                try:
+                    await keep_alive_task
+                except asyncio.CancelledError:
+                    logger.info("Keep-alive task cancelled")
             
             # Останавливаем render keep-alive instance
             if os.getenv('RENDER') and render_keep_alive:
                 render_keep_alive.stop()
             
-            # Удаляем lock файл
-            lock_file = '/tmp/qr_bot.lock' if os.getenv('RENDER') else None
-            if lock_file and os.path.exists(lock_file):
-                try:
-                    os.remove(lock_file)
-                    logger.info("🗑️ Lock file removed")
-                except Exception as e:
-                    logger.warning(f"⚠️ Could not remove lock file: {e}")
+            # Manual shutdown sequence
+            await application.updater.stop()
+            await application.stop()
+            await application.shutdown()
             
             logger.info("✅ Graceful shutdown completed")
-        except Exception as e:
-            logger.error(f"❌ Error during shutdown: {e}")
+    
+    # Запускаем асинхронную функцию
+    try:
+        asyncio.run(run_bot())
+    except Exception as e:
+        logger.error(f"Bot error: {e}")
+    finally:
+        # Удаляем lock файл
+        lock_file = '/tmp/qr_bot.lock' if os.getenv('RENDER') else None
+        if lock_file and os.path.exists(lock_file):
+            try:
+                os.remove(lock_file)
+                logger.info("🗑️ Lock file removed")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not remove lock file: {e}")
         
         logger.info("Bot stopped.")
 
