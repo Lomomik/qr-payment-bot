@@ -4,3 +4,8 @@ python-dotenv==1.0.1
 psutil==5.9.8
 aiohttp==3.9.5
 requests==2.31.0
+google-auth==2.23.3
+google-auth-oauthlib==1.1.0
+google-auth-httplib2==0.1.1
+google-api-python-client==2.103.0
+flask==2.3.3

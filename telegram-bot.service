@@ -1,0 +1,25 @@
+[Unit]
+Description=Telegram QR Payment Bot
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=opc
+Group=opc
+WorkingDirectory=/home/opc/telegram-bot
+Environment=PATH=/home/opc/telegram-bot/venv/bin
+ExecStart=/home/opc/telegram-bot/venv/bin/python qr.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Настройки безопасности
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/opc/telegram-bot
+
+[Install]
+WantedBy=multi-user.target
