@@ -428,6 +428,24 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     
     await update.message.reply_text(stats_text, parse_mode='Markdown')
 
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик ошибок согласно рекомендациям Context7"""
+    logger.error(f"Exception while handling an update: {context.error}")
+    
+    # Сбрасываем состояние пользователя при ошибке
+    if update and update.effective_user:
+        context.user_data.clear()
+    
+    # Отправляем сообщение пользователю только если update доступен
+    if update and update.effective_message:
+        try:
+            await update.effective_message.reply_text(
+                '❌ Произошла ошибка. Попробуйте начать заново.',
+                reply_markup=get_main_keyboard()
+            )
+        except Exception as e:
+            logger.error(f"Failed to send error message: {e}")
+
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик неизвестных команд"""
     await update.message.reply_text(
@@ -448,8 +466,15 @@ def main():
     if lock_file:
         try:
             if os.path.exists(lock_file):
-                logger.warning("⚠️ Bot lock file exists, removing stale lock...")
-                os.remove(lock_file)
+                # Проверяем возраст lock файла
+                import time
+                lock_age = time.time() - os.path.getmtime(lock_file)
+                if lock_age > 300:  # 5 минут
+                    logger.warning("⚠️ Removing stale lock file (>5 minutes old)")
+                    os.remove(lock_file)
+                else:
+                    logger.error(f"❌ Another bot instance may be running (lock age: {lock_age:.0f}s)")
+                    return
             
             # Создаем lock файл
             with open(lock_file, 'w') as f:
@@ -493,6 +518,9 @@ def main():
     # Обработчик для неизвестных команд
     application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
     
+    # Добавляем обработчик ошибок (Context7 рекомендация)
+    application.add_error_handler(error_handler)
+    
     # Запускаем бота
     logger.info("Starting bot...")
     
@@ -503,18 +531,30 @@ def main():
     except Exception as e:
         logger.error(f"Bot error: {e}")
     finally:
-        # Останавливаем keep-alive
-        if os.getenv('RENDER') and render_keep_alive:
-            render_keep_alive.stop()
-        
-        # Удаляем lock файл
-        lock_file = '/tmp/qr_bot.lock' if os.getenv('RENDER') else None
-        if lock_file and os.path.exists(lock_file):
-            try:
-                os.remove(lock_file)
-                logger.info("🗑️ Lock file removed")
-            except Exception as e:
-                logger.warning(f"⚠️ Could not remove lock file: {e}")
+        # Graceful shutdown согласно Context7 рекомендациям
+        try:
+            logger.info("🔄 Starting graceful shutdown...")
+            
+            # Останавливаем приложение
+            if hasattr(application, 'stop'):
+                asyncio.run(application.stop())
+            
+            # Останавливаем keep-alive
+            if os.getenv('RENDER') and render_keep_alive:
+                render_keep_alive.stop()
+            
+            # Удаляем lock файл
+            lock_file = '/tmp/qr_bot.lock' if os.getenv('RENDER') else None
+            if lock_file and os.path.exists(lock_file):
+                try:
+                    os.remove(lock_file)
+                    logger.info("🗑️ Lock file removed")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not remove lock file: {e}")
+            
+            logger.info("✅ Graceful shutdown completed")
+        except Exception as e:
+            logger.error(f"❌ Error during shutdown: {e}")
         
         logger.info("Bot stopped.")
 

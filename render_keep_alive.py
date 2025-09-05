@@ -27,7 +27,13 @@ class RenderKeepAlive:
     async def ping_self(self):
         """Пингует собственный health endpoint"""
         try:
-            timeout = aiohttp.ClientTimeout(total=10)
+            # Используем ClientTimeout согласно Context7 рекомендациям
+            timeout = aiohttp.ClientTimeout(
+                total=10,           # Общий таймаут
+                sock_connect=5,     # Таймаут подключения к сокету
+                sock_read=5         # Таймаут чтения сокета
+            )
+            
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(f"{self.app_url}/health") as response:
                     if response.status == 200:
@@ -38,6 +44,9 @@ class RenderKeepAlive:
                         return False
         except asyncio.TimeoutError:
             logger.warning("⏰ Keep-alive ping timeout")
+            return False
+        except aiohttp.ClientConnectorError as e:
+            logger.warning(f"🔌 Keep-alive connection error: {e}")
             return False
         except Exception as e:
             logger.error(f"❌ Keep-alive ping error: {e}")
