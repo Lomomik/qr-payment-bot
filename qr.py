@@ -460,27 +460,45 @@ def main():
         logger.error("BOT_TOKEN not found in environment variables!")
         return
     
-    # Проверяем единственность экземпляра на Render
+    # Проверяем единственность экземпляра на Render с улучшенным контролем
     lock_file = '/tmp/qr_bot.lock' if os.getenv('RENDER') else None
     
     if lock_file:
         try:
             if os.path.exists(lock_file):
+                # Читаем PID старого процесса
+                with open(lock_file, 'r') as f:
+                    old_pid = f.read().strip()
+                
                 # Проверяем возраст lock файла
                 import time
                 lock_age = time.time() - os.path.getmtime(lock_file)
-                if lock_age > 300:  # 5 минут
-                    logger.warning("⚠️ Removing stale lock file (>5 minutes old)")
+                
+                if lock_age > 180:  # 3 минуты (более агрессивно)
+                    logger.warning(f"⚠️ Removing stale lock file (>3 minutes old, PID: {old_pid})")
                     os.remove(lock_file)
                 else:
-                    logger.error(f"❌ Another bot instance may be running (lock age: {lock_age:.0f}s)")
-                    return
+                    logger.error(f"❌ Another bot instance is running (PID: {old_pid}, age: {lock_age:.0f}s)")
+                    logger.info("🔄 Waiting for old instance to shutdown gracefully...")
+                    
+                    # Даем старому процессу 30 секунд на graceful shutdown
+                    import time
+                    for i in range(30):
+                        time.sleep(1)
+                        if not os.path.exists(lock_file):
+                            logger.info("✅ Old instance shutdown detected")
+                            break
+                        if i == 29:
+                            logger.warning("⚠️ Force removing lock file after 30s wait")
+                            os.remove(lock_file)
             
-            # Создаем lock файл
+            # Создаем lock файл с текущим PID
             with open(lock_file, 'w') as f:
                 f.write(str(os.getpid()))
+            logger.info(f"🔒 Lock file created with PID: {os.getpid()}")
+            
         except Exception as e:
-            logger.warning(f"⚠️ Could not create lock file: {e}")
+            logger.warning(f"⚠️ Could not manage lock file: {e}")
     
     logger.info("Starting QR Payment Bot...")
     
@@ -523,7 +541,25 @@ def main():
             # Manual initialization
             await application.initialize()
             await application.start()
-            await application.updater.start_polling()
+            
+            # Проверяем на конфликты при запуске polling
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    await application.updater.start_polling()
+                    break  # Успешно запущен
+                except Exception as e:
+                    if "Conflict" in str(e) and "getUpdates" in str(e):
+                        logger.warning(f"🔄 Telegram API conflict detected (attempt {attempt + 1}/{max_retries})")
+                        if attempt < max_retries - 1:
+                            logger.info("⏳ Waiting 10 seconds for old instance to shutdown...")
+                            await asyncio.sleep(10)
+                            continue
+                        else:
+                            logger.error("❌ Failed to resolve Telegram API conflict after all retries")
+                            raise
+                    else:
+                        raise  # Другая ошибка, не связанная с конфликтом
             
             # Настройка keep-alive ПОСЛЕ запуска event loop
             if os.getenv('RENDER') and setup_render_keep_alive:
