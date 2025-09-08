@@ -32,6 +32,9 @@ test_qr.png
 
 # Переменные окружения
 .env
+.env.test
+.env.local
+.env.*.local
 
 # Google Calendar API
 credentials.json
