@@ -43,7 +43,7 @@ IBAN = 'CZ3230300000003247217010'
 user_stats = {}
 
 # Услуги салона - группировка по типам с понятными эмодзи
-SERVICES = {
+SERVICES_ALL = {
     # Услуги для бровей (🌿)
     'uprava_barveni': '🌿 ÚPRAVA A BARVENÍ',
     'uprava': '🌿 ÚPRAVA',
@@ -61,8 +61,35 @@ SERVICES = {
     'liceni_uces': '👄 LÍČENÍ & ÚČES',
     'liceni': '👄 LÍČENÍ',
     'uces': '👄 ÚČES',
-    
 }
+
+# Услуги для сумм до 1000 CZK включительно
+SERVICES_LOW_PRICE = {
+    'uprava_barveni': '🌿 ÚPRAVA A BARVENÍ',
+    'uprava': '🌿 ÚPRAVA', 
+    'zesvetleni_uprava_tonovani': '🌿 ZESVĚTLENÍ S ÚPRAVOU A TONOVÁNÍM',
+    'laminace_uprava_tonovani': '🌿 LAMINACE S ÚPRAVOU A TONOVÁNÍM',
+    'laminace_ras': '👁️ LAMINACE ŘAS',
+    'barveni_ras': '👁️ BARVENÍ ŘAS',
+    'depilace_obliceje': '🌿 DEPILACE OBLIČEJE',
+    'uces': '👄 ÚČES',
+}
+
+# Услуги для сумм от 1001 CZK
+SERVICES_HIGH_PRICE = {
+    'laminace_ras_uprava_barveni': '✨ LAMINACE ŘAS + ÚPRAVA A BARVENÍ OBOČÍ',
+    'laminace_ras_zesvetleni': '✨ LAMINACE ŘAS + ZESVĚTLENÍ OBOČÍ S TÓNOVÁNÍM',
+    'laminace_oboci_ras': '✨ LAMINACE OBOČÍ A ŘAS',
+    'liceni_uces': '👄 LÍČENÍ & ÚČES',
+    'liceni': '👄 LÍČENÍ',
+}
+
+def get_services_for_amount(amount: float) -> dict:
+    """Возвращает список услуг в зависимости от суммы"""
+    if amount <= 1000:
+        return SERVICES_LOW_PRICE
+    else:
+        return SERVICES_HIGH_PRICE
 
 def get_main_keyboard():
     """Создает главное меню с кнопками"""
@@ -72,25 +99,23 @@ def get_main_keyboard():
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
 
-def get_services_keyboard():
-    """Создает клавиатуру с выбором услуг"""
-    keyboard = []
-    services_list = list(SERVICES.items())
+def get_services_keyboard(amount: float = None):
+    """Создает клавиатуру с выбором услуг в зависимости от суммы"""
+    if amount is None:
+        # Используем все услуги если сумма не указана
+        services = SERVICES_ALL
+    else:
+        # Выбираем услуги в зависимости от суммы
+        services = get_services_for_amount(amount)
     
-    # Первые услуги по одной в ряд
-    for i in range(len(services_list) - 4):
-        service_key, service_name = services_list[i]
+    keyboard = []
+    
+    # Размещаем каждую услугу в отдельной строке
+    for service_key, service_name in services.items():
         keyboard.append([InlineKeyboardButton(service_name, callback_data=f"service_{service_key}")])
     
-    # Последние 4 услуги в 2 ряда по 2
-    last_four = services_list[-4:]
-    for i in range(0, 4, 2):
-        row = []
-        for j in range(2):
-            if i + j < len(last_four):
-                service_key, service_name = last_four[i + j]
-                row.append(InlineKeyboardButton(service_name, callback_data=f"service_{service_key}"))
-        keyboard.append(row)
+    # Добавляем кнопку "Написать услугу самому"
+    keyboard.append([InlineKeyboardButton("✏️ Написать услугу самому", callback_data="service_custom")])
     
     # Добавляем кнопку "Без указания услуги"
     keyboard.append([InlineKeyboardButton("❌ Без указания услуги", callback_data="service_none")])
@@ -240,6 +265,9 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     # Обработка ввода суммы
     if context.user_data.get('waiting_for_amount'):
         await handle_amount(update, context)
+    # Обработка ввода пользовательской услуги
+    elif context.user_data.get('waiting_for_custom_service'):
+        await handle_custom_service(update, context)
     else:
         await update.message.reply_text(
             '❓ Используйте кнопки для навигации или команды:\n\n'
@@ -278,12 +306,12 @@ async def handle_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         # Форматируем сумму для отображения
         formatted_amount = f"{amount:,.2f}".replace(',', ' ').replace('.', ',')
         
-        # Показываем выбор услуг
+        # Показываем выбор услуг с учетом суммы
         await update.message.reply_text(
             f'💰 Сумма: {formatted_amount} CZK\n\n'
             '🌿 Выберите услугу для указания в платеже:\n'
             '👇 Нажмите на нужную услугу',
-            reply_markup=get_services_keyboard()
+            reply_markup=get_services_keyboard(amount)
         )
         
         logger.info(f"Amount {amount} CZK saved, waiting for service selection, user: {update.effective_user.id}")
@@ -296,6 +324,61 @@ async def handle_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             '• Десятичные: 500.50, 1000.25\n\n'
             'Попробуйте еще раз:'
         )
+
+async def handle_custom_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик ввода пользовательской услуги"""
+    service_text = update.message.text.strip()
+    
+    if len(service_text) < 2:
+        await update.message.reply_text(
+            '❌ Название услуги слишком короткое!\n'
+            'Попробуйте еще раз:'
+        )
+        return
+    
+    if len(service_text) > 50:
+        await update.message.reply_text(
+            '❌ Название услуги слишком длинное!\n'
+            'Максимум: 50 символов\n'
+            'Попробуйте еще раз:'
+        )
+        return
+    
+    # Получаем сумму из контекста
+    amount = context.user_data.get('amount')
+    if not amount:
+        await update.message.reply_text('❌ Ошибка: сумма не найдена.')
+        return
+    
+    # Очищаем название услуги (убираем лишние пробелы, приводим к верхнему регистру)
+    service_msg = service_text.upper().strip()
+    
+    # Генерируем QR-код с пользовательской услугой
+    qr_image = generate_qr_code(amount, service_msg)
+    
+    # Форматируем сумму для отображения
+    formatted_amount = f"{amount:,.2f}".replace(',', ' ').replace('.', ',')
+    
+    # Отправляем QR-код
+    await context.bot.send_photo(
+        chat_id=update.message.chat_id,
+        photo=qr_image,
+        caption=f'🌿 QR-код для оплаты услуг салона\n\n'
+               f'💰 Сумма: {formatted_amount} CZK\n'
+               f'🛍️ Услуга: {service_msg}\n'
+               f'👤 Получатель: {OWNER_NAME}\n'
+               f'🏦 Счет: {ACCOUNT_NUMBER}\n\n'
+               f'📱 Покажите этот QR-код клиенту\n'
+               f'✅ Клиент сканирует код в своем банковским приложением',
+        reply_markup=get_main_keyboard()
+    )
+    
+    # Сбрасываем состояние
+    context.user_data['waiting_for_service'] = False
+    context.user_data['waiting_for_custom_service'] = False
+    context.user_data['amount'] = None
+    
+    logger.info(f"QR code generated for amount: {amount} CZK, custom service: {service_msg}, user: {update.effective_user.id}")
 
 async def handle_amount_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик выбора суммы через кнопки"""
@@ -332,12 +415,12 @@ async def handle_amount_selection(update: Update, context: ContextTypes.DEFAULT_
         # Форматируем сумму для отображения
         formatted_amount = f"{amount:,.2f}".replace(',', ' ').replace('.', ',')
         
-        # Показываем выбор услуг
+        # Показываем выбор услуг с учетом суммы
         await query.edit_message_text(
             f'💰 Сумма: {formatted_amount} CZK\n\n'
             '🌿 Выберите услугу для указания в платеже:\n'
             '👇 Нажмите на нужную услугу',
-            reply_markup=get_services_keyboard()
+            reply_markup=get_services_keyboard(amount)
         )
         
         logger.info(f"Amount {amount} CZK selected via button, waiting for service selection, user: {update.effective_user.id}")
@@ -366,8 +449,23 @@ async def handle_service_selection(update: Update, context: ContextTypes.DEFAULT
         service_name = None
         service_msg = None
         caption_service = ''
+    elif service_key == 'custom':
+        # Пользователь хочет ввести свою услугу
+        await query.edit_message_text(
+            '✏️ <b>Введите название услуги</b>\n\n'
+            '📝 Например:\n'
+            '• ÚPRAVA OBOČÍ\n'
+            '• BARVENÍ ŘAS\n'
+            '• KOMBINACE SLUŽEB\n\n'
+            '👇 Напишите название услуги:',
+            parse_mode='HTML'
+        )
+        # Устанавливаем состояние ожидания услуги
+        context.user_data['waiting_for_custom_service'] = True
+        return
     else:
-        service_name = SERVICES.get(service_key)
+        # Ищем услугу во всех доступных услугах
+        service_name = SERVICES_ALL.get(service_key)
         if service_name:
             # Убираем эмодзи из названия для QR-кода
             service_msg = service_name.split(' ', 1)[1] if ' ' in service_name else service_name
