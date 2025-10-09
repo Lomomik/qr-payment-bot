@@ -14,6 +14,15 @@ from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 
+# Импорт модуля базы данных
+try:
+    from database import db
+    DB_ENABLED = True
+    logger.info("✅ Database module loaded successfully")
+except ImportError:
+    DB_ENABLED = False
+    logger.warning("⚠️ Database module not found, using in-memory stats")
+
 # Настройка логирования
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -37,10 +46,10 @@ BOT_TOKEN = os.getenv('BOT_TOKEN')
 ADMIN_TELEGRAM_ID = os.getenv('ADMIN_TELEGRAM_ID')
 OWNER_NAME = os.getenv('OWNER_NAME', 'ULIANA EMELINA')
 ACCOUNT_NUMBER = os.getenv('ACCOUNT_NUMBER', '3247217010/3030')
-IBAN = 'CZ3230300000003247217010'
+IBAN = os.getenv('IBAN', 'CZ3230300000003247217010')
 
-# Статистика
-user_stats = {}
+# Статистика (fallback если БД недоступна)
+user_stats = {}  # Используется только если DB_ENABLED = False
 
 # Услуги салона - группировка по типам с понятными эмодзи
 SERVICES_ALL = {
@@ -146,8 +155,24 @@ def get_amount_keyboard():
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик команды /start"""
-    user_id = update.effective_user.id
-    user_stats[user_id] = user_stats.get(user_id, 0) + 1
+    user = update.effective_user
+    user_id = user.id
+    
+    # Логируем пользователя в БД или fallback статистику
+    if DB_ENABLED:
+        try:
+            db.add_or_update_user(
+                user_id=user_id,
+                username=user.username,
+                first_name=user.first_name,
+                last_name=user.last_name,
+                is_admin=(str(user_id) == ADMIN_TELEGRAM_ID)
+            )
+            db.add_event(user_id, 'start')
+        except Exception as e:
+            logger.error(f"Database error: {e}")
+    else:
+        user_stats[user_id] = user_stats.get(user_id, 0) + 1
     
     await update.message.reply_text(
         '🌿 Добро пожаловать в систему оплаты салона красоты Noéme!\n\n'
@@ -191,8 +216,18 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 async def payment_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Команда для создания QR-кода для оплаты"""
-    user_id = update.effective_user.id
-    user_stats[user_id] = user_stats.get(user_id, 0) + 1
+    user = update.effective_user
+    user_id = user.id
+    
+    # Логируем в БД
+    if DB_ENABLED:
+        try:
+            db.add_or_update_user(user_id, user.username, user.first_name, user.last_name)
+            db.add_event(user_id, 'payment_start')
+        except Exception as e:
+            logger.error(f"Database error: {e}")
+    else:
+        user_stats[user_id] = user_stats.get(user_id, 0) + 1
     
     await update.message.reply_text(
         '🌿 <b>Создание QR-кода для оплаты</b>\n\n'
@@ -373,6 +408,18 @@ async def handle_custom_service(update: Update, context: ContextTypes.DEFAULT_TY
         reply_markup=get_main_keyboard()
     )
     
+    # Записываем транзакцию в БД
+    if DB_ENABLED:
+        try:
+            db.add_transaction(
+                user_id=update.effective_user.id,
+                amount=amount,
+                service=service_msg
+            )
+            db.add_event(update.effective_user.id, 'qr_generated', f'amount:{amount},service:{service_msg}')
+        except Exception as e:
+            logger.error(f"Database error when saving transaction: {e}")
+    
     # Сбрасываем состояние
     context.user_data['waiting_for_service'] = False
     context.user_data['waiting_for_custom_service'] = False
@@ -496,6 +543,18 @@ async def handle_service_selection(update: Update, context: ContextTypes.DEFAULT
         reply_markup=get_main_keyboard()
     )
     
+    # Записываем транзакцию в БД
+    if DB_ENABLED:
+        try:
+            db.add_transaction(
+                user_id=update.effective_user.id,
+                amount=amount,
+                service=service_msg if service_msg else None
+            )
+            db.add_event(update.effective_user.id, 'qr_generated', f'amount:{amount},service:{service_msg}')
+        except Exception as e:
+            logger.error(f"Database error when saving transaction: {e}")
+    
     # Сбрасываем состояние
     context.user_data['waiting_for_service'] = False
     context.user_data['amount'] = None
@@ -511,20 +570,52 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await update.message.reply_text('❌ У вас нет доступа к этой команде.')
         return
     
-    total_users = len(user_stats)
-    total_requests = sum(user_stats.values())
-    
-    stats_text = f'📊 **СТАТИСТИКА БОТА**\n\n'
-    stats_text += f'👥 Всего пользователей: {total_users}\n'
-    stats_text += f'📱 Всего запросов: {total_requests}\n\n'
-    
-    if user_stats:
-        stats_text += '**Топ пользователей:**\n'
-        sorted_users = sorted(user_stats.items(), key=lambda x: x[1], reverse=True)
-        for i, (uid, count) in enumerate(sorted_users[:5], 1):
-            stats_text += f'{i}. User {uid}: {count} запросов\n'
-    
-    await update.message.reply_text(stats_text, parse_mode='Markdown')
+    if DB_ENABLED:
+        try:
+            # Получаем данные из БД
+            total_stats = db.get_total_stats()
+            all_users = db.get_all_users_stats()
+            popular_services = db.get_popular_services(5)
+            
+            stats_text = f'📊 **СТАТИСТИКА БОТА (БД)**\n\n'
+            stats_text += f'👥 Всего пользователей: {total_stats["total_users"]}\n'
+            stats_text += f'💰 Всего транзакций: {total_stats["total_transactions"]}\n'
+            stats_text += f'💵 Общая сумма: {total_stats["total_amount"]:,.0f} CZK\n'
+            stats_text += f'📊 Средняя сумма: {total_stats["avg_amount"]:.0f} CZK\n'
+            stats_text += f'🟢 Активных за 24ч: {total_stats["active_24h"]}\n\n'
+            
+            if all_users:
+                stats_text += '**Топ пользователей:**\n'
+                for i, user in enumerate(all_users[:5], 1):
+                    username = user['username'] or f"ID{user['user_id']}"
+                    stats_text += f'{i}. @{username}: {user["transactions_count"]} QR, {user["total_amount"]:.0f} CZK\n'
+            
+            if popular_services:
+                stats_text += '\n**Популярные услуги:**\n'
+                for i, (service, count) in enumerate(popular_services, 1):
+                    stats_text += f'{i}. {service}: {count}x\n'
+            
+            await update.message.reply_text(stats_text, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Database error in stats: {e}")
+            await update.message.reply_text(f'❌ Ошибка получения статистики из БД: {e}')
+    else:
+        # Fallback на старую статистику в памяти
+        total_users = len(user_stats)
+        total_requests = sum(user_stats.values())
+        
+        stats_text = f'📊 **СТАТИСТИКА БОТА (память)**\n\n'
+        stats_text += f'👥 Всего пользователей: {total_users}\n'
+        stats_text += f'📱 Всего запросов: {total_requests}\n\n'
+        
+        if user_stats:
+            stats_text += '**Топ пользователей:**\n'
+            sorted_users = sorted(user_stats.items(), key=lambda x: x[1], reverse=True)
+            for i, (uid, count) in enumerate(sorted_users[:5], 1):
+                stats_text += f'{i}. User {uid}: {count} запросов\n'
+        
+        await update.message.reply_text(stats_text, parse_mode='Markdown')
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик ошибок согласно рекомендациям Context7"""

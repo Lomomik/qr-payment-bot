@@ -22,20 +22,46 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+venv/
+.pytest_cache/
 
 # Тестовые файлы
 test_qr.png
+.coverage
+htmlcov/
 
 # IDE
 .vscode/
 .idea/
+.continue/
+*.swp
+*.swo
+*~
 
 # Переменные окружения
 .env
 .env.test
 .env.local
 .env.*.local
+.env.production
 
 # Google Calendar API
 credentials.json
 token.pickle
+token.json
+service-account.json
+*.json
+
+# Render deployment
+.render/
+
+# Временные файлы
+*.tmp
+*.temp
+.DS_Store
+
+# База данных
+bot_stats.db
+bot_stats.db-journal
+*.db
+*.db-journal

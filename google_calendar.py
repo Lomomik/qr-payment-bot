@@ -186,7 +186,7 @@ class GoogleCalendarService:
             return events
             
         except HttpError as error:
-            logger.error(f"Error getting calendar events: {error}")
+            logger.error(f"Error getting calendar events: {error}")5
             if "notFound" in str(error):
                 logger.error(f"Calendar ID '{self.calendar_id}' not found or no access")
                 logger.info("Проверьте GOOGLE_CALENDAR_ID в .env.test")

@@ -15,10 +15,10 @@ logger = logging.getLogger(__name__)
 class RenderKeepAlive:
     """Класс для поддержания активности Render сервиса"""
     
-    def __init__(self, app_url: str = None, ping_interval: int = 300):
+    def __init__(self, app_url: str = None, ping_interval: int = 120):
         """
         :param app_url: URL вашего Render приложения
-        :param ping_interval: Интервал пинга в секундах (по умолчанию 5 минут)
+        :param ping_interval: Интервал пинга в секундах (по умолчанию 2 минуты)
         """
         self.app_url = app_url or os.getenv('RENDER_EXTERNAL_URL', 'http://localhost:8080')
         self.ping_interval = ping_interval
@@ -55,7 +55,10 @@ class RenderKeepAlive:
     async def keep_alive_loop(self):
         """Основной цикл keep-alive"""
         logger.info(f"🚀 Starting keep-alive service for {self.app_url}")
-        logger.info(f"⏰ Ping interval: {self.ping_interval // 60} minutes")
+        if self.ping_interval >= 60:
+            logger.info(f"⏰ Ping interval: {self.ping_interval // 60} minutes")
+        else:
+            logger.info(f"⏰ Ping interval: {self.ping_interval} seconds")
         
         self.is_running = True
         
