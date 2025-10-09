@@ -10,3 +10,4 @@ google-auth-httplib2==0.1.1
 google-api-python-client==2.103.0
 flask==2.3.3
 pytest==7.4.3
+psycopg2-binary==2.9.9
