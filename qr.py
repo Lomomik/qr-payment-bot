@@ -577,7 +577,12 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             all_users = db.get_all_users_stats()
             popular_services = db.get_popular_services(5)
             
-            stats_text = f'📊 **СТАТИСТИКА БОТА (БД)**\n\n'
+            # Показываем тип базы данных
+            db_icon = "🐘" if db.db_type == 'postgresql' else "📝"
+            db_name = "PostgreSQL" if db.db_type == 'postgresql' else "SQLite"
+            
+            stats_text = f'📊 **СТАТИСТИКА БОТА**\n'
+            stats_text += f'{db_icon} База данных: **{db_name}**\n\n'
             stats_text += f'👥 Всего пользователей: {total_stats["total_users"]}\n'
             stats_text += f'💰 Всего транзакций: {total_stats["total_transactions"]}\n'
             stats_text += f'💵 Общая сумма: {total_stats["total_amount"]:,.0f} CZK\n'
