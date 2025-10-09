@@ -6,6 +6,7 @@
 
 import logging
 import os
+import sqlite3
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple
 from contextlib import contextmanager
@@ -28,10 +29,10 @@ if DATABASE_URL and DATABASE_URL.startswith('postgres'):
     except ImportError:
         POSTGRESQL_AVAILABLE = False
         logger.error("❌ psycopg2 not found! Install: pip install psycopg2-binary")
+        logger.info("🔄 Falling back to SQLite")
         DB_TYPE = 'sqlite'  # Fallback
 else:
     DB_TYPE = 'sqlite'
-    import sqlite3
     POSTGRESQL_AVAILABLE = False
 
 logger.info(f"📊 Database type: {DB_TYPE}")
