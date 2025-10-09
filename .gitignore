@@ -38,12 +38,26 @@ htmlcov/
 *.swo
 *~
 
-# Переменные окружения
+# Переменные окружения (КРИТИЧНО!)
 .env
-.env.test
+.env.*
+!.env.example
+!.env.*.example
 .env.local
-.env.*.local
 .env.production
+.env.development
+*.env
+!*.env.example
+
+# Секреты и ключи
+secret*
+*secret*
+*key*
+!*keyboard*
+*.pem
+*.key
+*.cert
+*.crt
 
 # Google Calendar API
 credentials.json
@@ -51,6 +65,9 @@ token.pickle
 token.json
 service-account.json
 *.json
+!package.json
+!package-lock.json
+!tsconfig.json
 
 # Render deployment
 .render/
