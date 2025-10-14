@@ -48,6 +48,19 @@ OWNER_NAME = os.getenv('OWNER_NAME', 'ULIANA EMELINA')
 ACCOUNT_NUMBER = os.getenv('ACCOUNT_NUMBER', '3247217010/3030')
 IBAN = os.getenv('IBAN', 'CZ3230300000003247217010')
 
+# Парсим список админов (поддержка нескольких ID через запятую)
+ADMIN_IDS = set()
+if ADMIN_TELEGRAM_ID:
+    for admin_id in ADMIN_TELEGRAM_ID.split(','):
+        admin_id = admin_id.strip()
+        if admin_id:
+            ADMIN_IDS.add(admin_id)
+    logger.info(f"✅ Loaded {len(ADMIN_IDS)} admin(s)")
+
+def is_admin(user_id: int) -> bool:
+    """Проверяет является ли пользователь админом"""
+    return str(user_id) in ADMIN_IDS
+
 # Статистика (fallback если БД недоступна)
 user_stats = {}  # Используется только если DB_ENABLED = False
 
@@ -180,7 +193,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 username=user.username,
                 first_name=user.first_name,
                 last_name=user.last_name,
-                is_admin=(str(user_id) == ADMIN_TELEGRAM_ID)
+                is_admin=is_admin(user_id)
             )
             db.add_event(user_id, 'start')
         except Exception as e:
@@ -188,7 +201,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         user_stats[user_id] = user_stats.get(user_id, 0) + 1
     
-    is_admin = str(user_id) == ADMIN_TELEGRAM_ID
+    is_admin = is_admin(user_id)
     
     await update.message.reply_text(
         '🌿 Добро пожаловать в систему оплаты салона красоты Noéme!\n\n'
@@ -247,11 +260,23 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         reply_markup=get_main_keyboard(is_admin)
     )
 
+async def myid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Показать свой Telegram ID"""
+    user = update.effective_user
+    await update.message.reply_text(
+        f'👤 <b>Ваша информация:</b>\n\n'
+        f'🆔 Telegram ID: <code>{user.id}</code>\n'
+        f'👤 Username: @{user.username or "нет"}\n'
+        f'📝 Имя: {user.first_name or ""} {user.last_name or ""}\n\n'
+        f'<i>Скопируйте ID для добавления в список админов</i>',
+        parse_mode='HTML'
+    )
+
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Админ-панель (только для админа)"""
     user_id = str(update.effective_user.id)
     
-    if user_id != ADMIN_TELEGRAM_ID:
+    if not is_admin(int(user_id)):
         await update.message.reply_text('❌ У вас нет доступа к админ-панели.')
         return
     
@@ -660,7 +685,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     """Статистика использования (только для админа)"""
     user_id = str(update.effective_user.id)
     
-    if user_id != ADMIN_TELEGRAM_ID:
+    if not is_admin(int(user_id)):
         await update.message.reply_text('❌ У вас нет доступа к этой команде.')
         return
     
@@ -751,7 +776,7 @@ async def addtx_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     """
     user_id = str(update.effective_user.id)
     
-    if user_id != ADMIN_TELEGRAM_ID:
+    if not is_admin(int(user_id)):
         await update.message.reply_text('❌ У вас нет доступа к этой команде.')
         return
     
@@ -812,7 +837,7 @@ async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     """Экспорт данных из БД в JSON (только для админа)"""
     user_id = str(update.effective_user.id)
     
-    if user_id != ADMIN_TELEGRAM_ID:
+    if not is_admin(int(user_id)):
         await update.message.reply_text('❌ У вас нет доступа к этой команде.')
         return
     
@@ -859,7 +884,7 @@ async def dbcheck_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     """Проверка подключения к базе данных (только для админа)"""
     user_id = str(update.effective_user.id)
     
-    if user_id != ADMIN_TELEGRAM_ID:
+    if not is_admin(int(user_id)):
         await update.message.reply_text('❌ У вас нет доступа к этой команде.')
         return
     
@@ -995,6 +1020,7 @@ def main():
     # Добавляем обработчики команд
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("myid", myid_command))
     application.add_handler(CommandHandler("admin", admin_command))
     application.add_handler(CommandHandler("info", info_command))
     application.add_handler(CommandHandler("payment", payment_command))
