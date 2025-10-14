@@ -577,17 +577,45 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             all_users = db.get_all_users_stats()
             popular_services = db.get_popular_services(5)
             
+            # Получаем месячную статистику
+            current_month = db.get_monthly_stats(0)  # Текущий месяц
+            prev_month = db.get_monthly_stats(1)     # Прошлый месяц
+            
             # Показываем тип базы данных
             db_icon = "🐘" if db.db_type == 'postgresql' else "📝"
             db_name = "PostgreSQL" if db.db_type == 'postgresql' else "SQLite"
             
+            # Названия месяцев
+            month_names = ['', 'январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 
+                          'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь']
+            
             stats_text = f'📊 **СТАТИСТИКА БОТА**\n'
             stats_text += f'{db_icon} База данных: **{db_name}**\n\n'
+            
+            stats_text += f'**📅 За все время:**\n'
             stats_text += f'👥 Всего пользователей: {total_stats["total_users"]}\n'
             stats_text += f'💰 Всего транзакций: {total_stats["total_transactions"]}\n'
             stats_text += f'💵 Общая сумма: {total_stats["total_amount"]:,.0f} CZK\n'
             stats_text += f'📊 Средняя сумма: {total_stats["avg_amount"]:.0f} CZK\n'
             stats_text += f'🟢 Активных за 24ч: {total_stats["active_24h"]}\n\n'
+            
+            # Текущий месяц
+            if current_month['transactions'] > 0:
+                curr_month_name = month_names[current_month['month']]
+                stats_text += f'**📅 {curr_month_name.capitalize()} {current_month["year"]}:**\n'
+                stats_text += f'💰 Транзакций: {current_month["transactions"]}\n'
+                stats_text += f'💵 Сумма: {current_month["total_amount"]:,.0f} CZK\n'
+                stats_text += f'📊 Средняя: {current_month["avg_amount"]:.0f} CZK\n'
+                stats_text += f'👥 Клиентов: {current_month["unique_users"]}\n\n'
+            
+            # Прошлый месяц
+            if prev_month['transactions'] > 0:
+                prev_month_name = month_names[prev_month['month']]
+                stats_text += f'**📅 {prev_month_name.capitalize()} {prev_month["year"]}:**\n'
+                stats_text += f'💰 Транзакций: {prev_month["transactions"]}\n'
+                stats_text += f'💵 Сумма: {prev_month["total_amount"]:,.0f} CZK\n'
+                stats_text += f'📊 Средняя: {prev_month["avg_amount"]:.0f} CZK\n'
+                stats_text += f'👥 Клиентов: {prev_month["unique_users"]}\n\n'
             
             if all_users:
                 stats_text += '**Топ пользователей:**\n'

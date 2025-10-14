@@ -448,6 +448,71 @@ class Database:
             
             return [dict(row) for row in cursor.fetchall()]
     
+    def get_monthly_stats(self, month_offset: int = 0) -> Dict:
+        """Получить статистику за месяц
+        
+        Args:
+            month_offset: 0 = текущий месяц, 1 = прошлый месяц, и т.д.
+        
+        Returns:
+            Dict с ключами: month, year, transactions, total_amount, avg_amount, unique_users
+        """
+        with self.get_connection() as conn:
+            cursor = self._get_cursor(conn)
+            
+            if self.db_type == 'postgresql':
+                cursor.execute('''
+                    SELECT 
+                        EXTRACT(MONTH FROM timestamp) as month,
+                        EXTRACT(YEAR FROM timestamp) as year,
+                        COUNT(*) as transactions,
+                        COALESCE(SUM(amount), 0) as total_amount,
+                        COALESCE(AVG(amount), 0) as avg_amount,
+                        COUNT(DISTINCT user_id) as unique_users
+                    FROM transactions
+                    WHERE 
+                        EXTRACT(YEAR FROM timestamp) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '%s months')
+                        AND EXTRACT(MONTH FROM timestamp) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '%s months')
+                    GROUP BY EXTRACT(MONTH FROM timestamp), EXTRACT(YEAR FROM timestamp)
+                ''', (month_offset, month_offset))
+            else:
+                cursor.execute('''
+                    SELECT 
+                        CAST(strftime('%m', timestamp) AS INTEGER) as month,
+                        CAST(strftime('%Y', timestamp) AS INTEGER) as year,
+                        COUNT(*) as transactions,
+                        COALESCE(SUM(amount), 0) as total_amount,
+                        COALESCE(AVG(amount), 0) as avg_amount,
+                        COUNT(DISTINCT user_id) as unique_users
+                    FROM transactions
+                    WHERE 
+                        strftime('%Y-%m', timestamp) = strftime('%Y-%m', date('now', '-' || ? || ' months'))
+                    GROUP BY strftime('%Y-%m', timestamp)
+                ''', (month_offset,))
+            
+            result = cursor.fetchone()
+            if result:
+                return {
+                    'month': int(result['month']),
+                    'year': int(result['year']),
+                    'transactions': result['transactions'],
+                    'total_amount': round(float(result['total_amount']), 2),
+                    'avg_amount': round(float(result['avg_amount']), 2),
+                    'unique_users': result['unique_users']
+                }
+            else:
+                # Возвращаем пустую статистику если нет данных
+                from datetime import datetime, timedelta
+                target_date = datetime.now() - timedelta(days=30 * month_offset)
+                return {
+                    'month': target_date.month,
+                    'year': target_date.year,
+                    'transactions': 0,
+                    'total_amount': 0.0,
+                    'avg_amount': 0.0,
+                    'unique_users': 0
+                }
+    
     def close(self):
         """Закрыть подключение"""
         if self.db_type == 'postgresql' and hasattr(self, 'pool'):
