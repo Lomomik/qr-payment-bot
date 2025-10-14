@@ -677,7 +677,7 @@ async def dbcheck_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await update.message.reply_text('❌ У вас нет доступа к этой команде.')
         return
     
-    check_text = '🔍 **ДИАГНОСТИКА БАЗЫ ДАННЫХ**\n\n'
+    check_text = '🔍 <b>ДИАГНОСТИКА БАЗЫ ДАННЫХ</b>\n\n'
     
     # Проверка DATABASE_URL
     database_url = os.getenv('DATABASE_URL')
@@ -689,7 +689,7 @@ async def dbcheck_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             masked_url = user_part + '@' + parts[1]
         else:
             masked_url = database_url
-        check_text += f'📋 DATABASE_URL: `{masked_url}`\n\n'
+        check_text += f'📋 DATABASE_URL: <code>{masked_url}</code>\n\n'
     else:
         check_text += '❌ DATABASE_URL: не установлен\n\n'
     
@@ -704,7 +704,7 @@ async def dbcheck_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # Проверка типа БД
     if DB_ENABLED:
         from database import db
-        check_text += f'📊 Тип БД: **{db.db_type.upper()}**\n'
+        check_text += f'📊 Тип БД: <b>{db.db_type.upper()}</b>\n'
         
         if db.db_type == 'postgresql':
             check_text += '🐘 PostgreSQL активен\n'
@@ -718,13 +718,13 @@ async def dbcheck_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         else:
             check_text += '📝 SQLite активен (fallback)\n'
             if database_url and database_url.startswith('postgres'):
-                check_text += '\n⚠️ **ПРОБЛЕМА:**\n'
+                check_text += '\n⚠️ <b>ПРОБЛЕМА:</b>\n'
                 check_text += 'DATABASE_URL настроен, но используется SQLite!\n'
                 check_text += 'Возможно psycopg2 не установлен.\n'
     else:
         check_text += '❌ База данных: не инициализирована\n'
     
-    await update.message.reply_text(check_text, parse_mode='Markdown')
+    await update.message.reply_text(check_text, parse_mode='HTML')
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик ошибок согласно рекомендациям Context7"""
