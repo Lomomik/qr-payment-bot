@@ -57,7 +57,7 @@ if ADMIN_TELEGRAM_ID:
             ADMIN_IDS.add(admin_id)
     logger.info(f"✅ Loaded {len(ADMIN_IDS)} admin(s)")
 
-def is_admin(user_id: int) -> bool:
+def check_is_admin(user_id: int) -> bool:
     """Проверяет является ли пользователь админом"""
     return str(user_id) in ADMIN_IDS
 
@@ -113,7 +113,7 @@ def get_services_for_amount(amount: float) -> dict:
     else:
         return SERVICES_HIGH_PRICE
 
-def get_main_keyboard(is_admin: bool = False):
+def get_main_keyboard(show_admin: bool = False):
     """Создает главное меню с кнопками"""
     keyboard = [
         [KeyboardButton('💰 Создать QR-код для оплаты')],
@@ -121,7 +121,7 @@ def get_main_keyboard(is_admin: bool = False):
     ]
     
     # Добавляем кнопку админ-панели для админов
-    if is_admin:
+    if show_admin:
         keyboard.append([KeyboardButton('🔧 Админ-панель')])
     
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
@@ -193,7 +193,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 username=user.username,
                 first_name=user.first_name,
                 last_name=user.last_name,
-                is_admin=is_admin(user_id)
+                is_admin=check_is_admin(user_id)
             )
             db.add_event(user_id, 'start')
         except Exception as e:
@@ -201,7 +201,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         user_stats[user_id] = user_stats.get(user_id, 0) + 1
     
-    is_admin = is_admin(user_id)
+    is_admin = check_is_admin(user_id)
     
     await update.message.reply_text(
         '🌿 Добро пожаловать в систему оплаты салона красоты Noéme!\n\n'
@@ -276,7 +276,7 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     """Админ-панель (только для админа)"""
     user_id = str(update.effective_user.id)
     
-    if not is_admin(int(user_id)):
+    if not check_is_admin(int(user_id)):
         await update.message.reply_text('❌ У вас нет доступа к админ-панели.')
         return
     
@@ -386,16 +386,16 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
     
     # Обработка кнопок админ-панели
-    elif text == '🔧 Админ-панель' and is_admin:
+    elif text == '🔧 Админ-панель' and check_is_admin(int(user_id)):
         await admin_command(update, context)
         return
-    elif text == '📊 Статистика' and is_admin:
+    elif text == '📊 Статистика' and check_is_admin(int(user_id)):
         await stats_command(update, context)
         return
-    elif text == '🔍 Проверка БД' and is_admin:
+    elif text == '🔍 Проверка БД' and check_is_admin(int(user_id)):
         await dbcheck_command(update, context)
         return
-    elif text == '➕ Добавить транзакцию' and is_admin:
+    elif text == '➕ Добавить транзакцию' and check_is_admin(int(user_id)):
         await update.message.reply_text(
             '➕ <b>Добавление транзакции</b>\n\n'
             'Формат: /addtx <сумма> <username> <услуга>\n\n'
@@ -406,7 +406,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             reply_markup=get_admin_keyboard()
         )
         return
-    elif text == '📦 Бэкап' and is_admin:
+    elif text == '📦 Бэкап' and check_is_admin(int(user_id)):
         await backup_command(update, context)
         return
     elif text == '🔙 Главное меню':
@@ -685,7 +685,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     """Статистика использования (только для админа)"""
     user_id = str(update.effective_user.id)
     
-    if not is_admin(int(user_id)):
+    if not check_is_admin(int(user_id)):
         await update.message.reply_text('❌ У вас нет доступа к этой команде.')
         return
     
@@ -776,7 +776,7 @@ async def addtx_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     """
     user_id = str(update.effective_user.id)
     
-    if not is_admin(int(user_id)):
+    if not check_is_admin(int(user_id)):
         await update.message.reply_text('❌ У вас нет доступа к этой команде.')
         return
     
@@ -837,7 +837,7 @@ async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     """Экспорт данных из БД в JSON (только для админа)"""
     user_id = str(update.effective_user.id)
     
-    if not is_admin(int(user_id)):
+    if not check_is_admin(int(user_id)):
         await update.message.reply_text('❌ У вас нет доступа к этой команде.')
         return
     
@@ -884,7 +884,7 @@ async def dbcheck_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     """Проверка подключения к базе данных (только для админа)"""
     user_id = str(update.effective_user.id)
     
-    if not is_admin(int(user_id)):
+    if not check_is_admin(int(user_id)):
         await update.message.reply_text('❌ У вас нет доступа к этой команде.')
         return
     
