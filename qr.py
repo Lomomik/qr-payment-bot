@@ -622,6 +622,53 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         
         await update.message.reply_text(stats_text, parse_mode='Markdown')
 
+async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Экспорт данных из БД в JSON (только для админа)"""
+    user_id = str(update.effective_user.id)
+    
+    if user_id != ADMIN_TELEGRAM_ID:
+        await update.message.reply_text('❌ У вас нет доступа к этой команде.')
+        return
+    
+    if not DB_ENABLED:
+        await update.message.reply_text('❌ База данных не подключена.')
+        return
+    
+    try:
+        import json
+        from datetime import datetime
+        
+        # Собираем все данные
+        all_users = db.get_all_users_stats()
+        recent_transactions = db.get_recent_transactions(100)  # Все транзакции
+        
+        backup_data = {
+            'backup_date': datetime.now().isoformat(),
+            'db_type': db.db_type,
+            'users': all_users,
+            'transactions': recent_transactions
+        }
+        
+        # Конвертируем в JSON
+        json_data = json.dumps(backup_data, indent=2, ensure_ascii=False, default=str)
+        
+        # Отправляем как файл
+        from io import BytesIO
+        backup_file = BytesIO(json_data.encode('utf-8'))
+        backup_file.name = f'backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+        
+        await update.message.reply_document(
+            document=backup_file,
+            caption=f'📦 Бэкап базы данных\n\n'
+                   f'Пользователей: {len(all_users)}\n'
+                   f'Транзакций: {len(recent_transactions)}\n'
+                   f'Дата: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
+        )
+        
+    except Exception as e:
+        logger.error(f"Backup error: {e}")
+        await update.message.reply_text(f'❌ Ошибка создания бэкапа: {e}')
+
 async def dbcheck_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Проверка подключения к базе данных (только для админа)"""
     user_id = str(update.effective_user.id)
@@ -765,6 +812,7 @@ def main():
     application.add_handler(CommandHandler("info", info_command))
     application.add_handler(CommandHandler("payment", payment_command))
     application.add_handler(CommandHandler("stats", stats_command))
+    application.add_handler(CommandHandler("backup", backup_command))
     application.add_handler(CommandHandler("dbcheck", dbcheck_command))
     
     # Обработчик для выбора сумм (inline кнопки)
