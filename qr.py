@@ -100,11 +100,25 @@ def get_services_for_amount(amount: float) -> dict:
     else:
         return SERVICES_HIGH_PRICE
 
-def get_main_keyboard():
+def get_main_keyboard(is_admin: bool = False):
     """Создает главное меню с кнопками"""
     keyboard = [
         [KeyboardButton('💰 Создать QR-код для оплаты')],
         [KeyboardButton('ℹ️ Реквизиты счета'), KeyboardButton('❓ Помощь')]
+    ]
+    
+    # Добавляем кнопку админ-панели для админов
+    if is_admin:
+        keyboard.append([KeyboardButton('🔧 Админ-панель')])
+    
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
+
+def get_admin_keyboard():
+    """Создает админское меню с кнопками"""
+    keyboard = [
+        [KeyboardButton('📊 Статистика'), KeyboardButton('🔍 Проверка БД')],
+        [KeyboardButton('➕ Добавить транзакцию'), KeyboardButton('📦 Бэкап')],
+        [KeyboardButton('🔙 Главное меню')]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
 
@@ -174,6 +188,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         user_stats[user_id] = user_stats.get(user_id, 0) + 1
     
+    is_admin = str(user_id) == ADMIN_TELEGRAM_ID
+    
     await update.message.reply_text(
         '🌿 Добро пожаловать в систему оплаты салона красоты Noéme!\n\n'
         '💰 Этот бот поможет вам быстро создать QR-код для оплаты услуг.\n\n'
@@ -182,23 +198,68 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         '• Автоматически заполняются все данные для перевода\n'
         '• Остается только подтвердить платеж\n\n'
         '👇 Выберите действие с помощью кнопок ниже:',
-        reply_markup=get_main_keyboard()
+        reply_markup=get_main_keyboard(is_admin)
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик команды /help"""
-    await update.message.reply_text(
-        '📋 **ИНСТРУКЦИЯ ДЛЯ СОТРУДНИКА**\n\n'
-        '**Как создать QR-код:**\n'
+    user_id = str(update.effective_user.id)
+    is_admin = user_id == ADMIN_TELEGRAM_ID
+    
+    help_text = (
+        '📋 <b>ИНСТРУКЦИЯ ДЛЯ СОТРУДНИКА</b>\n\n'
+        '<b>Как создать QR-код:</b>\n'
         '1️⃣ Рассчитайте стоимость услуг\n'
         '2️⃣ Нажмите кнопку "💰 Создать QR-код для оплаты"\n'
         '3️⃣ Введите сумму в кронах (например: 1400)\n'
-        '4️⃣ Выберите услугу из списка или "Без указания услуги"\n'
+        '4️⃣ Выберите услугу из списка\n'
         '5️⃣ Покажите QR-код клиенту\n'
-        '6️⃣ Клиент сканирует код в своем банковском приложении\n\n'
-        '💡 QR-код автоматически заполнит все данные для перевода!',
-        parse_mode='Markdown',
-        reply_markup=get_main_keyboard()
+        '6️⃣ Клиент сканирует код в банковском приложении\n\n'
+        '💡 QR-код автоматически заполнит все данные для перевода!'
+    )
+    
+    if is_admin:
+        help_text += (
+            '\n\n🔧 <b>КОМАНДЫ ДЛЯ АДМИНА:</b>\n\n'
+            '📊 <b>/stats</b> - Полная статистика\n'
+            '   • Общая статистика за все время\n'
+            '   • Статистика по месяцам (текущий и прошлый)\n'
+            '   • Топ пользователей\n'
+            '   • Популярные услуги\n\n'
+            '➕ <b>/addtx</b> - Добавить транзакцию вручную\n'
+            '   Формат: /addtx <сумма> <username> <услуга>\n'
+            '   Пример: /addtx 1400 makkenddyy LAMINACE ŘAS\n'
+            '   Пользователь должен сначала запустить бота!\n\n'
+            '📦 <b>/backup</b> - Экспорт данных в JSON\n'
+            '   Сохраняет все транзакции и пользователей\n'
+            '   в файл для резервной копии\n\n'
+            '🔍 <b>/dbcheck</b> - Диагностика базы данных\n'
+            '   Проверяет подключение к PostgreSQL,\n'
+            '   версию psycopg2, тип используемой БД\n\n'
+            '🔧 <b>Кнопки админ-панели:</b>\n'
+            '   Используйте кнопку "🔧 Админ-панель" для\n'
+            '   быстрого доступа ко всем командам'
+        )
+    
+    await update.message.reply_text(
+        help_text,
+        parse_mode='HTML',
+        reply_markup=get_main_keyboard(is_admin)
+    )
+
+async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Админ-панель (только для админа)"""
+    user_id = str(update.effective_user.id)
+    
+    if user_id != ADMIN_TELEGRAM_ID:
+        await update.message.reply_text('❌ У вас нет доступа к админ-панели.')
+        return
+    
+    await update.message.reply_text(
+        '🔧 <b>АДМИН-ПАНЕЛЬ</b>\n\n'
+        'Выберите действие с помощью кнопок ниже:',
+        parse_mode='HTML',
+        reply_markup=get_admin_keyboard()
     )
 
 async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -285,8 +346,10 @@ def generate_qr_code(amount: float, service_msg: str = None) -> BytesIO:
 async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик текстовых сообщений (кнопки и суммы)"""
     text = update.message.text
+    user_id = str(update.effective_user.id)
+    is_admin = user_id == ADMIN_TELEGRAM_ID
     
-    # Обработка кнопок
+    # Обработка основных кнопок
     if text == '💰 Создать QR-код для оплаты':
         await payment_command(update, context)
         return
@@ -295,6 +358,37 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
     elif text == '❓ Помощь':
         await help_command(update, context)
+        return
+    
+    # Обработка кнопок админ-панели
+    elif text == '🔧 Админ-панель' and is_admin:
+        await admin_command(update, context)
+        return
+    elif text == '📊 Статистика' and is_admin:
+        await stats_command(update, context)
+        return
+    elif text == '🔍 Проверка БД' and is_admin:
+        await dbcheck_command(update, context)
+        return
+    elif text == '➕ Добавить транзакцию' and is_admin:
+        await update.message.reply_text(
+            '➕ <b>Добавление транзакции</b>\n\n'
+            'Формат: /addtx <сумма> <username> <услуга>\n\n'
+            '<b>Пример:</b>\n'
+            '/addtx 1400 makkenddyy LAMINACE ŘAS\n\n'
+            '<i>Пользователь должен сначала запустить бота!</i>',
+            parse_mode='HTML',
+            reply_markup=get_admin_keyboard()
+        )
+        return
+    elif text == '📦 Бэкап' and is_admin:
+        await backup_command(update, context)
+        return
+    elif text == '🔙 Главное меню':
+        await update.message.reply_text(
+            '🔙 Возвращаемся в главное меню',
+            reply_markup=get_main_keyboard(is_admin)
+        )
         return
     
     # Обработка ввода суммы
@@ -309,7 +403,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
             '💰 Создать QR-код - для создания QR-кода\n'
             'ℹ️ Реквизиты счета - для просмотра реквизитов\n'
             '❓ Помощь - для получения инструкций',
-            reply_markup=get_main_keyboard()
+            reply_markup=get_main_keyboard(is_admin)
         )
 
 async def handle_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -901,6 +995,7 @@ def main():
     # Добавляем обработчики команд
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("admin", admin_command))
     application.add_handler(CommandHandler("info", info_command))
     application.add_handler(CommandHandler("payment", payment_command))
     application.add_handler(CommandHandler("stats", stats_command))
