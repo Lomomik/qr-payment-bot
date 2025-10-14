@@ -217,7 +217,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик команды /help"""
     user_id = str(update.effective_user.id)
-    is_admin = user_id == ADMIN_TELEGRAM_ID
+    is_admin = check_is_admin(int(user_id))
     
     help_text = (
         '📋 <b>ИНСТРУКЦИЯ ДЛЯ СОТРУДНИКА</b>\n\n'
@@ -372,7 +372,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     """Обработчик текстовых сообщений (кнопки и суммы)"""
     text = update.message.text
     user_id = str(update.effective_user.id)
-    is_admin = user_id == ADMIN_TELEGRAM_ID
+    is_admin = check_is_admin(int(user_id))
     
     # Обработка основных кнопок
     if text == '💰 Создать QR-код для оплаты':
