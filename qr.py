@@ -622,6 +622,63 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         
         await update.message.reply_text(stats_text, parse_mode='Markdown')
 
+async def dbcheck_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Проверка подключения к базе данных (только для админа)"""
+    user_id = str(update.effective_user.id)
+    
+    if user_id != ADMIN_TELEGRAM_ID:
+        await update.message.reply_text('❌ У вас нет доступа к этой команде.')
+        return
+    
+    check_text = '🔍 **ДИАГНОСТИКА БАЗЫ ДАННЫХ**\n\n'
+    
+    # Проверка DATABASE_URL
+    database_url = os.getenv('DATABASE_URL')
+    if database_url:
+        # Скрываем пароль
+        if '@' in database_url:
+            parts = database_url.split('@')
+            user_part = parts[0].split('://')[0] + '://' + parts[0].split('://')[1].split(':')[0] + ':***'
+            masked_url = user_part + '@' + parts[1]
+        else:
+            masked_url = database_url
+        check_text += f'📋 DATABASE_URL: `{masked_url}`\n\n'
+    else:
+        check_text += '❌ DATABASE_URL: не установлен\n\n'
+    
+    # Проверка psycopg2
+    try:
+        import psycopg2
+        check_text += '✅ psycopg2: установлен\n'
+        check_text += f'   Версия: {psycopg2.__version__}\n\n'
+    except ImportError:
+        check_text += '❌ psycopg2: НЕ установлен\n\n'
+    
+    # Проверка типа БД
+    if DB_ENABLED:
+        from database import db
+        check_text += f'📊 Тип БД: **{db.db_type.upper()}**\n'
+        
+        if db.db_type == 'postgresql':
+            check_text += '🐘 PostgreSQL активен\n'
+            try:
+                # Пробуем подключиться
+                with db.get_connection() as conn:
+                    check_text += '✅ Подключение: успешно\n'
+            except Exception as e:
+                check_text += f'❌ Подключение: ошибка\n'
+                check_text += f'   {str(e)[:100]}\n'
+        else:
+            check_text += '📝 SQLite активен (fallback)\n'
+            if database_url and database_url.startswith('postgres'):
+                check_text += '\n⚠️ **ПРОБЛЕМА:**\n'
+                check_text += 'DATABASE_URL настроен, но используется SQLite!\n'
+                check_text += 'Возможно psycopg2 не установлен.\n'
+    else:
+        check_text += '❌ База данных: не инициализирована\n'
+    
+    await update.message.reply_text(check_text, parse_mode='Markdown')
+
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик ошибок согласно рекомендациям Context7"""
     logger.error(f"Exception while handling an update: {context.error}")
@@ -708,6 +765,7 @@ def main():
     application.add_handler(CommandHandler("info", info_command))
     application.add_handler(CommandHandler("payment", payment_command))
     application.add_handler(CommandHandler("stats", stats_command))
+    application.add_handler(CommandHandler("dbcheck", dbcheck_command))
     
     # Обработчик для выбора сумм (inline кнопки)
     application.add_handler(CallbackQueryHandler(handle_amount_selection, pattern=r'^amount_'))
