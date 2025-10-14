@@ -185,6 +185,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     user_id = user.id
     
+    # Определяем статус админа
+    is_admin = check_is_admin(user_id)
+    
     # Логируем пользователя в БД или fallback статистику
     if DB_ENABLED:
         try:
@@ -193,15 +196,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 username=user.username,
                 first_name=user.first_name,
                 last_name=user.last_name,
-                is_admin=check_is_admin(user_id)
+                is_admin=is_admin
             )
             db.add_event(user_id, 'start')
         except Exception as e:
             logger.error(f"Database error: {e}")
     else:
         user_stats[user_id] = user_stats.get(user_id, 0) + 1
-    
-    is_admin = check_is_admin(user_id)
     
     await update.message.reply_text(
         '🌿 Добро пожаловать в систему оплаты салона красоты Noéme!\n\n'
