@@ -241,7 +241,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             '   • Топ пользователей\n'
             '   • Популярные услуги\n\n'
             '➕ <b>/addtx</b> - Добавить транзакцию вручную\n'
-            '   Формат: /addtx <сумма> <username> <услуга>\n'
+            '   Формат: /addtx &lt;сумма&gt; &lt;username&gt; &lt;услуга&gt;\n'
             '   Пример: /addtx 1400 makkenddyy LAMINACE ŘAS\n'
             '   Пользователь должен сначала запустить бота!\n\n'
             '📦 <b>/backup</b> - Экспорт данных в JSON\n'
@@ -399,7 +399,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     elif text == '➕ Добавить транзакцию' and check_is_admin(int(user_id)):
         await update.message.reply_text(
             '➕ <b>Добавление транзакции</b>\n\n'
-            'Формат: /addtx <сумма> <username> <услуга>\n\n'
+            'Формат: /addtx &lt;сумма&gt; &lt;username&gt; &lt;услуга&gt;\n\n'
             '<b>Пример:</b>\n'
             '/addtx 1400 makkenddyy LAMINACE ŘAS\n\n'
             '<i>Пользователь должен сначала запустить бота!</i>',
