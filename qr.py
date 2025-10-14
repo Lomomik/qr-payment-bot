@@ -650,6 +650,70 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         
         await update.message.reply_text(stats_text, parse_mode='Markdown')
 
+async def addtx_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Добавить транзакцию вручную (только для админа)
+    Формат: /addtx <сумма> <username> <услуга>
+    Пример: /addtx 1400 @makkenddyy ÚPRAVA A BARVENÍ
+    """
+    user_id = str(update.effective_user.id)
+    
+    if user_id != ADMIN_TELEGRAM_ID:
+        await update.message.reply_text('❌ У вас нет доступа к этой команде.')
+        return
+    
+    if not DB_ENABLED:
+        await update.message.reply_text('❌ База данных не подключена.')
+        return
+    
+    # Парсим аргументы
+    try:
+        args = update.message.text.split(maxsplit=3)
+        if len(args) < 3:
+            await update.message.reply_text(
+                '❌ Неверный формат!\n\n'
+                'Использование:\n'
+                '/addtx <сумма> <username> [услуга]\n\n'
+                'Примеры:\n'
+                '/addtx 1400 @makkenddyy LAMINACE ŘAS\n'
+                '/addtx 500 @user123\n'
+            )
+            return
+        
+        amount = float(args[1])
+        username_arg = args[2].lstrip('@')
+        service = args[3] if len(args) > 3 else None
+        
+        # Ищем пользователя по username
+        all_users = db.get_all_users_stats()
+        target_user = None
+        for user in all_users:
+            if user['username'] == username_arg:
+                target_user = user
+                break
+        
+        if not target_user:
+            await update.message.reply_text(
+                f'❌ Пользователь @{username_arg} не найден в базе.\n\n'
+                'Пользователь должен сначала запустить бота (/start).'
+            )
+            return
+        
+        # Добавляем транзакцию
+        db.add_transaction(target_user['user_id'], amount, service)
+        
+        await update.message.reply_text(
+            f'✅ Транзакция добавлена!\n\n'
+            f'💰 Сумма: {amount:,.0f} CZK\n'
+            f'👤 Пользователь: @{username_arg}\n'
+            f'🛍️ Услуга: {service or "не указана"}'
+        )
+        
+    except ValueError:
+        await update.message.reply_text('❌ Неверная сумма! Используйте число.')
+    except Exception as e:
+        logger.error(f"Error adding transaction: {e}")
+        await update.message.reply_text(f'❌ Ошибка: {e}')
+
 async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Экспорт данных из БД в JSON (только для админа)"""
     user_id = str(update.effective_user.id)
@@ -841,6 +905,7 @@ def main():
     application.add_handler(CommandHandler("payment", payment_command))
     application.add_handler(CommandHandler("stats", stats_command))
     application.add_handler(CommandHandler("backup", backup_command))
+    application.add_handler(CommandHandler("addtx", addtx_command))
     application.add_handler(CommandHandler("dbcheck", dbcheck_command))
     
     # Обработчик для выбора сумм (inline кнопки)
