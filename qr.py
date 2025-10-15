@@ -238,7 +238,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             '📊 <b>/stats</b> - Полная статистика\n'
             '   • Общая статистика за все время\n'
             '   • Статистика по месяцам (текущий и прошлый)\n'
-            '   • Топ пользователей\n'
+            '   • Топ мастеров\n'
             '   • Популярные услуги\n\n'
             '➕ <b>/addtx</b> - Добавить транзакцию вручную\n'
             '   Формат: /addtx &lt;сумма&gt; &lt;username&gt; &lt;услуга&gt;\n'
@@ -739,7 +739,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 stats_text += f'👥 Клиентов: {prev_month["unique_users"]}\n\n'
             
             if all_users:
-                stats_text += '**Топ пользователей:**\n'
+                stats_text += '**Топ мастеров:**\n'
                 for i, user in enumerate(all_users[:5], 1):
                     username = user['username'] or f"ID{user['user_id']}"
                     stats_text += f'{i}. @{username}: {user["transactions_count"]} QR, {user["total_amount"]:.0f} CZK\n'
@@ -771,7 +771,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         stats_text += f'📱 Всего запросов: {total_requests}\n\n'
         
         if user_stats:
-            stats_text += '**Топ пользователей:**\n'
+            stats_text += '**Топ мастеров:**\n'
             sorted_users = sorted(user_stats.items(), key=lambda x: x[1], reverse=True)
             for i, (uid, count) in enumerate(sorted_users[:5], 1):
                 stats_text += f'{i}. User {uid}: {count} запросов\n'
@@ -989,10 +989,10 @@ async def handle_stats_callback(update: Update, context: ContextTypes.DEFAULT_TY
                         stats_text += f'📉 Мин. сумма: {extremes["min_amount"]:.0f} CZK\n'
                         stats_text += f'📈 Макс. сумма: {extremes["max_amount"]:.0f} CZK\n'
                     
-                    # Топ пользователей за месяц
+                    # Топ мастеров за месяц
                     top_users = db.get_monthly_top_users(offset, 5)
                     if top_users:
-                        stats_text += '\n<b>👥 Топ клиентов:</b>\n'
+                        stats_text += '\n<b>👥 Топ мастеров:</b>\n'
                         for i, user in enumerate(top_users, 1):
                             username = user['username'] or f"ID{user['user_id']}"
                             stats_text += f'{i}. @{username}: {user["transactions_count"]} QR, {user["total_amount"]:.0f} CZK\n'
@@ -1067,7 +1067,7 @@ async def handle_stats_callback(update: Update, context: ContextTypes.DEFAULT_TY
                     stats_text += f'👥 Клиентов: {prev_month["unique_users"]}\n\n'
                 
                 if all_users:
-                    stats_text += '**Топ пользователей:**\n'
+                    stats_text += '**Топ мастеров:**\n'
                     for i, user in enumerate(all_users[:5], 1):
                         username = user['username'] or f"ID{user['user_id']}"
                         stats_text += f'{i}. @{username}: {user["transactions_count"]} QR, {user["total_amount"]:.0f} CZK\n'
