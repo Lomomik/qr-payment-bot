@@ -911,19 +911,29 @@ async def handle_stats_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return
     
     if query.data == "stats_select_month":
-        # Показываем список последних 12 месяцев
+        # Показываем список месяцев только с данными
         from datetime import datetime, timedelta
         
         keyboard = []
         month_names = ['', 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
                       'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
         
-        # Генерируем кнопки для последних 12 месяцев
+        # Проверяем последние 12 месяцев и показываем только те, где есть данные
         row = []
         for offset in range(12):
-            target_date = datetime.now() - timedelta(days=30 * offset)
-            month_name = month_names[target_date.month]
-            year = target_date.year
+            if DB_ENABLED:
+                month_stats = db.get_monthly_stats(offset)
+                # Показываем только месяцы с транзакциями
+                if month_stats['transactions'] == 0:
+                    continue
+                
+                month_name = month_names[month_stats['month']]
+                year = month_stats['year']
+            else:
+                # Если БД нет, показываем все месяцы
+                target_date = datetime.now() - timedelta(days=30 * offset)
+                month_name = month_names[target_date.month]
+                year = target_date.year
             
             button_text = f"{month_name} {year}"
             row.append(InlineKeyboardButton(button_text, callback_data=f"stats_month_{offset}"))
@@ -935,7 +945,15 @@ async def handle_stats_callback(update: Update, context: ContextTypes.DEFAULT_TY
         if row:
             keyboard.append(row)
         
-        keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="stats_back")])
+        if not keyboard:
+            # Нет месяцев с данными
+            await query.edit_message_text(
+                '📭 <b>Нет данных за последние 12 месяцев</b>',
+                parse_mode='HTML'
+            )
+            return
+        
+        keyboard.append([InlineKeyboardButton("🔙 Назад к статистике", callback_data="stats_back")])
         
         await query.edit_message_text(
             '📅 <b>Выберите месяц:</b>',
@@ -980,7 +998,72 @@ async def handle_stats_callback(update: Update, context: ContextTypes.DEFAULT_TY
     
     elif query.data == "stats_back":
         # Возвращаемся к общей статистике
-        await query.delete_message()
+        if DB_ENABLED:
+            try:
+                # Получаем данные из БД
+                total_stats = db.get_total_stats()
+                all_users = db.get_all_users_stats()
+                popular_services = db.get_popular_services(5)
+                
+                # Получаем месячную статистику
+                current_month = db.get_monthly_stats(0)  # Текущий месяц
+                prev_month = db.get_monthly_stats(1)     # Прошлый месяц
+                
+                # Показываем тип базы данных
+                db_icon = "🐘" if db.db_type == 'postgresql' else "📝"
+                db_name = "PostgreSQL" if db.db_type == 'postgresql' else "SQLite"
+                
+                # Названия месяцев
+                month_names = ['', 'январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 
+                              'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь']
+                
+                stats_text = f'📊 **СТАТИСТИКА БОТА**\n'
+                stats_text += f'{db_icon} База данных: **{db_name}**\n\n'
+                
+                stats_text += f'**📅 За все время:**\n'
+                stats_text += f'👥 Всего пользователей: {total_stats["total_users"]}\n'
+                stats_text += f'💰 Всего транзакций: {total_stats["total_transactions"]}\n'
+                stats_text += f'💵 Общая сумма: {total_stats["total_amount"]:,.0f} CZK\n'
+                stats_text += f'📊 Средняя сумма: {total_stats["avg_amount"]:.0f} CZK\n'
+                stats_text += f'🟢 Активных за 24ч: {total_stats["active_24h"]}\n\n'
+                
+                # Текущий месяц
+                if current_month['transactions'] > 0:
+                    curr_month_name = month_names[current_month['month']]
+                    stats_text += f'**📅 {curr_month_name.capitalize()} {current_month["year"]}:**\n'
+                    stats_text += f'💰 Транзакций: {current_month["transactions"]}\n'
+                    stats_text += f'💵 Сумма: {current_month["total_amount"]:,.0f} CZK\n'
+                    stats_text += f'📊 Средняя: {current_month["avg_amount"]:.0f} CZK\n'
+                    stats_text += f'👥 Клиентов: {current_month["unique_users"]}\n\n'
+                
+                # Прошлый месяц
+                if prev_month['transactions'] > 0:
+                    prev_month_name = month_names[prev_month['month']]
+                    stats_text += f'**📅 {prev_month_name.capitalize()} {prev_month["year"]}:**\n'
+                    stats_text += f'💰 Транзакций: {prev_month["transactions"]}\n'
+                    stats_text += f'💵 Сумма: {prev_month["total_amount"]:,.0f} CZK\n'
+                    stats_text += f'📊 Средняя: {prev_month["avg_amount"]:.0f} CZK\n'
+                    stats_text += f'👥 Клиентов: {prev_month["unique_users"]}\n\n'
+                
+                if all_users:
+                    stats_text += '**Топ пользователей:**\n'
+                    for i, user in enumerate(all_users[:5], 1):
+                        username = user['username'] or f"ID{user['user_id']}"
+                        stats_text += f'{i}. @{username}: {user["transactions_count"]} QR, {user["total_amount"]:.0f} CZK\n'
+                
+                if popular_services:
+                    stats_text += '\n**Популярные услуги:**\n'
+                    for i, (service, count) in enumerate(popular_services, 1):
+                        stats_text += f'{i}. {service}: {count}x\n'
+                
+                # Создаем кнопки для выбора других месяцев
+                keyboard = [[InlineKeyboardButton("📅 Другой месяц", callback_data="stats_select_month")]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await query.edit_message_text(stats_text, parse_mode='Markdown', reply_markup=reply_markup)
+            except Exception as e:
+                logger.error(f"Error in stats_back: {e}")
+                await query.edit_message_text(f'❌ Ошибка: {e}')
 
 async def addtx_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Добавить транзакцию вручную (только для админа)
