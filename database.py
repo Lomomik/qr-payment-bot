@@ -473,6 +473,140 @@ class Database:
             
             return [dict(row) for row in cursor.fetchall()]
     
+    def get_monthly_top_users(self, month_offset: int = 0, limit: int = 5) -> List[Dict]:
+        """Получить топ пользователей за месяц
+        
+        Args:
+            month_offset: 0 = текущий месяц, 1 = прошлый месяц, и т.д.
+            limit: количество пользователей для возврата
+        
+        Returns:
+            List[Dict] с ключами: user_id, username, first_name, transactions_count, total_amount
+        """
+        with self.get_connection() as conn:
+            cursor = self._get_cursor(conn)
+            
+            if self.db_type == 'postgresql':
+                cursor.execute('''
+                    SELECT 
+                        u.user_id,
+                        u.username,
+                        u.first_name,
+                        COUNT(t.id) as transactions_count,
+                        COALESCE(SUM(t.amount), 0) as total_amount
+                    FROM users u
+                    JOIN transactions t ON u.user_id = t.user_id
+                    WHERE 
+                        EXTRACT(YEAR FROM t.timestamp) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '%s months')
+                        AND EXTRACT(MONTH FROM t.timestamp) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '%s months')
+                    GROUP BY u.user_id, u.username, u.first_name
+                    ORDER BY transactions_count DESC, total_amount DESC
+                    LIMIT %s
+                ''', (month_offset, month_offset, limit))
+            else:
+                cursor.execute('''
+                    SELECT 
+                        u.user_id,
+                        u.username,
+                        u.first_name,
+                        COUNT(t.id) as transactions_count,
+                        COALESCE(SUM(t.amount), 0) as total_amount
+                    FROM users u
+                    JOIN transactions t ON u.user_id = t.user_id
+                    WHERE 
+                        strftime('%Y-%m', t.timestamp) = strftime('%Y-%m', date('now', '-' || ? || ' months'))
+                    GROUP BY u.user_id, u.username, u.first_name
+                    ORDER BY transactions_count DESC, total_amount DESC
+                    LIMIT ?
+                ''', (month_offset, limit))
+            
+            return [dict(row) for row in cursor.fetchall()]
+    
+    def get_monthly_top_services(self, month_offset: int = 0, limit: int = 5) -> List[tuple]:
+        """Получить топ услуг за месяц
+        
+        Args:
+            month_offset: 0 = текущий месяц, 1 = прошлый месяц, и т.д.
+            limit: количество услуг для возврата
+        
+        Returns:
+            List[tuple] (service_name, count)
+        """
+        with self.get_connection() as conn:
+            cursor = self._get_cursor(conn)
+            
+            if self.db_type == 'postgresql':
+                cursor.execute('''
+                    SELECT service, COUNT(*) as count
+                    FROM transactions
+                    WHERE 
+                        service IS NOT NULL 
+                        AND service != ''
+                        AND EXTRACT(YEAR FROM timestamp) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '%s months')
+                        AND EXTRACT(MONTH FROM timestamp) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '%s months')
+                    GROUP BY service
+                    ORDER BY count DESC
+                    LIMIT %s
+                ''', (month_offset, month_offset, limit))
+            else:
+                cursor.execute('''
+                    SELECT service, COUNT(*) as count
+                    FROM transactions
+                    WHERE 
+                        service IS NOT NULL 
+                        AND service != ''
+                        AND strftime('%Y-%m', timestamp) = strftime('%Y-%m', date('now', '-' || ? || ' months'))
+                    GROUP BY service
+                    ORDER BY count DESC
+                    LIMIT ?
+                ''', (month_offset, limit))
+            
+            return [(row['service'], row['count']) for row in cursor.fetchall()]
+    
+    def get_monthly_extremes(self, month_offset: int = 0) -> Dict:
+        """Получить минимальную и максимальную транзакции за месяц
+        
+        Args:
+            month_offset: 0 = текущий месяц, 1 = прошлый месяц, и т.д.
+        
+        Returns:
+            Dict с ключами: min_amount, max_amount
+        """
+        with self.get_connection() as conn:
+            cursor = self._get_cursor(conn)
+            
+            if self.db_type == 'postgresql':
+                cursor.execute('''
+                    SELECT 
+                        MIN(amount) as min_amount,
+                        MAX(amount) as max_amount
+                    FROM transactions
+                    WHERE 
+                        EXTRACT(YEAR FROM timestamp) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '%s months')
+                        AND EXTRACT(MONTH FROM timestamp) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '%s months')
+                ''', (month_offset, month_offset))
+            else:
+                cursor.execute('''
+                    SELECT 
+                        MIN(amount) as min_amount,
+                        MAX(amount) as max_amount
+                    FROM transactions
+                    WHERE 
+                        strftime('%Y-%m', timestamp) = strftime('%Y-%m', date('now', '-' || ? || ' months'))
+                ''', (month_offset,))
+            
+            result = cursor.fetchone()
+            if result and result['min_amount'] is not None:
+                return {
+                    'min_amount': float(result['min_amount']),
+                    'max_amount': float(result['max_amount'])
+                }
+            else:
+                return {
+                    'min_amount': 0.0,
+                    'max_amount': 0.0
+                }
+    
     def get_monthly_stats(self, month_offset: int = 0) -> Dict:
         """Получить статистику за месяц
         

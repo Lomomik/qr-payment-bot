@@ -976,10 +976,33 @@ async def handle_stats_callback(update: Update, context: ContextTypes.DEFAULT_TY
                 stats_text = f'📊 <b>Статистика за {month_name} {month_stats["year"]}</b>\n\n'
                 
                 if month_stats['transactions'] > 0:
+                    # Общая статистика
+                    stats_text += '<b>📈 Общие показатели:</b>\n'
                     stats_text += f'💰 Транзакций: {month_stats["transactions"]}\n'
                     stats_text += f'💵 Общая сумма: {month_stats["total_amount"]:,.0f} CZK\n'
                     stats_text += f'📊 Средний чек: {month_stats["avg_amount"]:.0f} CZK\n'
                     stats_text += f'👥 Клиентов: {month_stats["unique_users"]}\n'
+                    
+                    # Минимальная и максимальная транзакции
+                    extremes = db.get_monthly_extremes(offset)
+                    if extremes['max_amount'] > 0:
+                        stats_text += f'📉 Мин. сумма: {extremes["min_amount"]:.0f} CZK\n'
+                        stats_text += f'📈 Макс. сумма: {extremes["max_amount"]:.0f} CZK\n'
+                    
+                    # Топ пользователей за месяц
+                    top_users = db.get_monthly_top_users(offset, 5)
+                    if top_users:
+                        stats_text += '\n<b>👥 Топ клиентов:</b>\n'
+                        for i, user in enumerate(top_users, 1):
+                            username = user['username'] or f"ID{user['user_id']}"
+                            stats_text += f'{i}. @{username}: {user["transactions_count"]} QR, {user["total_amount"]:.0f} CZK\n'
+                    
+                    # Топ услуг за месяц
+                    top_services = db.get_monthly_top_services(offset, 5)
+                    if top_services:
+                        stats_text += '\n<b>🛍️ Популярные услуги:</b>\n'
+                        for i, (service, count) in enumerate(top_services, 1):
+                            stats_text += f'{i}. {service}: {count}x\n'
                 else:
                     stats_text += '📭 Нет данных за этот период'
                 
