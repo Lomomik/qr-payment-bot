@@ -413,7 +413,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
     elif text == '🔙 Главное меню':
         await update.message.reply_text(
-            '.',
+            '🔙',
             reply_markup=get_main_keyboard(is_admin)
         )
         return
