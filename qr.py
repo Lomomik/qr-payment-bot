@@ -415,7 +415,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
     elif text == '🔙 Главное меню':
         await update.message.reply_text(
-            '🔙 Возвращаемся в главное меню',
+            '👋',
             reply_markup=get_main_keyboard(is_admin)
         )
         return
@@ -442,9 +442,9 @@ async def handle_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         amount_text = update.message.text.strip().replace(',', '.')
         amount = float(amount_text)
         
-        if amount <= 0:
+        if amount < 0:
             await update.message.reply_text(
-                '❌ Сумма должна быть больше нуля!\n'
+                '❌ Сумма не может быть отрицательной!\n'
                 'Попробуйте еще раз:'
             )
             return

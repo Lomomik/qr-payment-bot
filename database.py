@@ -322,7 +322,7 @@ class Database:
                 FROM users u
                 LEFT JOIN transactions t ON u.user_id = t.user_id
                 GROUP BY u.user_id, u.username, u.first_name, u.last_name, u.total_requests, u.last_seen
-                ORDER BY u.total_requests DESC
+                ORDER BY transactions_count DESC, total_amount DESC
             ''')
             
             return [dict(row) for row in cursor.fetchall()]
