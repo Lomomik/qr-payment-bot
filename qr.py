@@ -809,7 +809,12 @@ async def transactions_command(update: Update, context: ContextTypes.DEFAULT_TYP
         for i, tx in enumerate(transactions[:10], 1):  # Показываем только 10 последних
             username = tx['username'] or f"ID{tx['user_id']}"
             service = tx['service'] or 'Без услуги'
-            timestamp = tx['timestamp'][:16].replace('T', ' ')
+            
+            # Форматируем timestamp (может быть строкой или datetime объектом)
+            if isinstance(tx['timestamp'], str):
+                timestamp = tx['timestamp'][:16].replace('T', ' ')
+            else:
+                timestamp = tx['timestamp'].strftime('%Y-%m-%d %H:%M')
             
             text += f'{i}. <b>{timestamp}</b>\n'
             text += f'   @{username} - {tx["amount"]:.0f} CZK\n'
