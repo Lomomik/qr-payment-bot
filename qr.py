@@ -282,9 +282,7 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
     
     await update.message.reply_text(
-        '🔧 <b>АДМИН-ПАНЕЛЬ</b>\n\n'
-        'Выберите действие с помощью кнопок ниже:',
-        parse_mode='HTML',
+        '🔧',
         reply_markup=get_admin_keyboard()
     )
 
