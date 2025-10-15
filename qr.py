@@ -130,8 +130,8 @@ def get_admin_keyboard():
     """Создает админское меню с кнопками"""
     keyboard = [
         [KeyboardButton('📊 Статистика'), KeyboardButton('🔍 Проверка БД')],
-        [KeyboardButton('➕ Добавить транзакцию'), KeyboardButton('📦 Бэкап')],
-        [KeyboardButton('🔙 Главное меню')]
+        [KeyboardButton('➕ Добавить транзакцию'), KeyboardButton('📋 Транзакции')],
+        [KeyboardButton('📦 Бэкап'), KeyboardButton('🔙 Главное меню')]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
 
@@ -409,6 +409,9 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
     elif text == '📦 Бэкап' and check_is_admin(int(user_id)):
         await backup_command(update, context)
+        return
+    elif text == '📋 Транзакции' and check_is_admin(int(user_id)):
+        await transactions_command(update, context)
         return
     elif text == '🔙 Главное меню':
         await update.message.reply_text(
@@ -777,6 +780,126 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         
         await update.message.reply_text(stats_text, parse_mode='Markdown')
 
+async def transactions_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Показать последние транзакции с возможностью удаления"""
+    user_id = str(update.effective_user.id)
+    
+    if not check_is_admin(int(user_id)):
+        await update.message.reply_text('❌ У вас нет доступа к этой команде.')
+        return
+    
+    if not DB_ENABLED:
+        await update.message.reply_text('❌ База данных не подключена.')
+        return
+    
+    try:
+        # Получаем последние 20 транзакций
+        transactions = db.get_recent_transactions(20)
+        
+        if not transactions:
+            await update.message.reply_text(
+                '📭 <b>Транзакций пока нет</b>',
+                parse_mode='HTML',
+                reply_markup=get_admin_keyboard()
+            )
+            return
+        
+        # Создаем список транзакций с кнопками удаления
+        text = '📋 <b>Последние транзакции:</b>\n\n'
+        keyboard = []
+        
+        for i, tx in enumerate(transactions[:10], 1):  # Показываем только 10 последних
+            username = tx['username'] or f"ID{tx['user_id']}"
+            service = tx['service'] or 'Без услуги'
+            timestamp = tx['timestamp'][:16].replace('T', ' ')
+            
+            text += f'{i}. <b>{timestamp}</b>\n'
+            text += f'   @{username} - {tx["amount"]:.0f} CZK\n'
+            text += f'   {service}\n\n'
+            
+            # Кнопка удаления для каждой транзакции
+            keyboard.append([
+                InlineKeyboardButton(
+                    f"🗑️ Удалить #{i}", 
+                    callback_data=f"del_tx_{tx['id']}"
+                )
+            ])
+        
+        # Кнопка показать еще
+        if len(transactions) > 10:
+            keyboard.append([
+                InlineKeyboardButton("📄 Показать еще", callback_data="tx_show_more")
+            ])
+        
+        await update.message.reply_text(
+            text,
+            parse_mode='HTML',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in transactions_command: {e}")
+        await update.message.reply_text(f'❌ Ошибка: {e}')
+
+async def handle_delete_transaction(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик удаления транзакции"""
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = str(query.from_user.id)
+    if not check_is_admin(int(user_id)):
+        await query.edit_message_text('❌ У вас нет доступа к этой команде.')
+        return
+    
+    if query.data.startswith("del_tx_"):
+        # Запрос подтверждения
+        tx_id = int(query.data.split('_')[2])
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("✅ Да, удалить", callback_data=f"confirm_del_{tx_id}"),
+                InlineKeyboardButton("❌ Отмена", callback_data="cancel_del")
+            ]
+        ]
+        
+        await query.edit_message_text(
+            '⚠️ <b>Подтверждение удаления</b>\n\n'
+            f'Вы уверены что хотите удалить транзакцию #{tx_id}?\n\n'
+            '<i>Это действие нельзя отменить!</i>',
+            parse_mode='HTML',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    
+    elif query.data.startswith("confirm_del_"):
+        # Подтверждено - удаляем
+        tx_id = int(query.data.split('_')[2])
+        
+        if DB_ENABLED:
+            try:
+                success = db.delete_transaction(tx_id)
+                
+                if success:
+                    await query.edit_message_text(
+                        f'✅ <b>Транзакция #{tx_id} удалена</b>\n\n'
+                        'Используйте кнопку "📋 Транзакции" для просмотра актуального списка',
+                        parse_mode='HTML'
+                    )
+                else:
+                    await query.edit_message_text(
+                        f'❌ Транзакция #{tx_id} не найдена',
+                        parse_mode='HTML'
+                    )
+            except Exception as e:
+                logger.error(f"Error deleting transaction: {e}")
+                await query.edit_message_text(f'❌ Ошибка при удалении: {e}')
+    
+    elif query.data == "cancel_del":
+        await query.edit_message_text(
+            '❌ <b>Удаление отменено</b>\n\n'
+            'Используйте кнопку "📋 Транзакции" для просмотра списка',
+            parse_mode='HTML'
+        )
+
 async def handle_stats_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик callback для выбора месяца статистики"""
     query = update.callback_query
@@ -1127,6 +1250,9 @@ def main():
     
     # Обработчик для статистики по месяцам (inline кнопки)
     application.add_handler(CallbackQueryHandler(handle_stats_callback, pattern=r'^stats_'))
+    
+    # Обработчик для удаления транзакций (inline кнопки)
+    application.add_handler(CallbackQueryHandler(handle_delete_transaction, pattern=r'^(del_tx_|confirm_del_|cancel_del)'))
     
     # Обработчик для текстовых сообщений (кнопки и суммы)
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))

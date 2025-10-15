@@ -398,6 +398,31 @@ class Database:
             
             return [dict(row) for row in cursor.fetchall()]
     
+    def delete_transaction(self, transaction_id: int) -> bool:
+        """Удалить транзакцию по ID"""
+        with self.get_connection() as conn:
+            cursor = self._get_cursor(conn)
+            
+            # Сначала проверяем существование транзакции
+            cursor.execute('''
+                SELECT id FROM transactions WHERE id = %s
+            ''' if self.db_type == 'postgresql' else '''
+                SELECT id FROM transactions WHERE id = ?
+            ''', (transaction_id,))
+            
+            if not cursor.fetchone():
+                return False
+            
+            # Удаляем транзакцию
+            cursor.execute('''
+                DELETE FROM transactions WHERE id = %s
+            ''' if self.db_type == 'postgresql' else '''
+                DELETE FROM transactions WHERE id = ?
+            ''', (transaction_id,))
+            
+            logger.info(f"Transaction {transaction_id} deleted successfully")
+            return True
+    
     def get_popular_services(self, limit: int = 10) -> List[Tuple[str, int]]:
         """Получить популярные услуги"""
         with self.get_connection() as conn:
