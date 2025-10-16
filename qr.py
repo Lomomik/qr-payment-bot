@@ -858,20 +858,39 @@ async def handle_delete_transaction(update: Update, context: ContextTypes.DEFAUL
         # Запрос подтверждения
         tx_id = int(query.data.split('_')[2])
         
-        keyboard = [
-            [
-                InlineKeyboardButton("✅ Да, удалить", callback_data=f"confirm_del_{tx_id}"),
-                InlineKeyboardButton("❌ Отмена", callback_data="cancel_del")
-            ]
-        ]
-        
-        await query.edit_message_text(
-            '⚠️ <b>Подтверждение удаления</b>\n\n'
-            f'Вы уверены что хотите удалить транзакцию #{tx_id}?\n\n'
-            '<i>Это действие нельзя отменить!</i>',
-            parse_mode='HTML',
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        # Получаем информацию о транзакции
+        if DB_ENABLED:
+            tx = db.get_transaction_by_id(tx_id)
+            if tx:
+                username = tx['username'] or f"ID{tx['user_id']}"
+                service = tx['service'] or 'Без услуги'
+                
+                # Форматируем timestamp
+                if isinstance(tx['timestamp'], str):
+                    timestamp = tx['timestamp'][:16].replace('T', ' ')
+                else:
+                    timestamp = tx['timestamp'].strftime('%Y-%m-%d %H:%M')
+                
+                keyboard = [
+                    [
+                        InlineKeyboardButton("✅ Да, удалить", callback_data=f"confirm_del_{tx_id}"),
+                        InlineKeyboardButton("❌ Отмена", callback_data="cancel_del")
+                    ]
+                ]
+                
+                await query.edit_message_text(
+                    '⚠️ <b>Подтверждение удаления</b>\n\n'
+                    f'<b>{timestamp}</b>\n'
+                    f'@{username} - {tx["amount"]:.0f} CZK\n'
+                    f'{service}\n\n'
+                    '<i>Это действие нельзя отменить!</i>',
+                    parse_mode='HTML',
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+            else:
+                await query.edit_message_text('❌ Транзакция не найдена', parse_mode='HTML')
+        else:
+            await query.edit_message_text('❌ База данных не подключена', parse_mode='HTML')
     
     elif query.data.startswith("confirm_del_"):
         # Подтверждено - удаляем
@@ -883,13 +902,13 @@ async def handle_delete_transaction(update: Update, context: ContextTypes.DEFAUL
                 
                 if success:
                     await query.edit_message_text(
-                        f'✅ <b>Транзакция #{tx_id} удалена</b>\n\n'
+                        '✅ <b>Транзакция удалена успешно</b>\n\n'
                         'Используйте кнопку "📋 Транзакции" для просмотра актуального списка',
                         parse_mode='HTML'
                     )
                 else:
                     await query.edit_message_text(
-                        f'❌ Транзакция #{tx_id} не найдена',
+                        '❌ Транзакция не найдена',
                         parse_mode='HTML'
                     )
             except Exception as e:

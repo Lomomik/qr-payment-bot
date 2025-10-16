@@ -398,6 +398,40 @@ class Database:
             
             return [dict(row) for row in cursor.fetchall()]
     
+    def get_transaction_by_id(self, transaction_id: int) -> Dict:
+        """Получить транзакцию по ID"""
+        with self.get_connection() as conn:
+            cursor = self._get_cursor(conn)
+            
+            cursor.execute('''
+                SELECT 
+                    t.id,
+                    t.user_id,
+                    u.username,
+                    u.first_name,
+                    t.amount,
+                    t.service,
+                    t.timestamp
+                FROM transactions t
+                JOIN users u ON t.user_id = u.user_id
+                WHERE t.id = %s
+            ''' if self.db_type == 'postgresql' else '''
+                SELECT 
+                    t.id,
+                    t.user_id,
+                    u.username,
+                    u.first_name,
+                    t.amount,
+                    t.service,
+                    t.timestamp
+                FROM transactions t
+                JOIN users u ON t.user_id = u.user_id
+                WHERE t.id = ?
+            ''', (transaction_id,))
+            
+            result = cursor.fetchone()
+            return dict(result) if result else None
+    
     def delete_transaction(self, transaction_id: int) -> bool:
         """Удалить транзакцию по ID"""
         with self.get_connection() as conn:
