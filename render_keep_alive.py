@@ -15,10 +15,10 @@ logger = logging.getLogger(__name__)
 class RenderKeepAlive:
     """Класс для поддержания активности Render сервиса"""
     
-    def __init__(self, app_url: str = None, ping_interval: int = 120):
+    def __init__(self, app_url: str = None, ping_interval: int = 720):
         """
         :param app_url: URL вашего Render приложения
-        :param ping_interval: Интервал пинга в секундах (по умолчанию 2 минуты)
+        :param ping_interval: Интервал пинга в секундах (по умолчанию 12 минут)
         """
         self.app_url = app_url or os.getenv('RENDER_EXTERNAL_URL', 'http://localhost:8080')
         self.ping_interval = ping_interval
@@ -83,6 +83,9 @@ class RenderKeepAlive:
 # Создание глобального экземпляра
 render_keep_alive = RenderKeepAlive()
 
+# Флаг для предотвращения двойного запуска health endpoint
+_health_endpoint_started = False
+
 # Health endpoint для Flask (если используете Flask)
 def create_flask_health_endpoint():
     """Создает Flask приложение с health endpoint"""
@@ -123,6 +126,13 @@ def create_flask_health_endpoint():
 # Простой HTTP сервер (если нет Flask/FastAPI)
 def create_simple_health_endpoint():
     """Создает простой HTTP сервер с health endpoint"""
+    global _health_endpoint_started
+    
+    # Предотвращаем двойной запуск
+    if _health_endpoint_started:
+        logger.info("🌐 Health endpoint already running, skipping duplicate start")
+        return
+    
     try:
         from http.server import HTTPServer, BaseHTTPRequestHandler
         import json
@@ -164,6 +174,7 @@ def create_simple_health_endpoint():
         server_thread = threading.Thread(target=run_simple_server, daemon=True)
         server_thread.start()
         
+        _health_endpoint_started = True
         logger.info("🌐 Simple HTTP health endpoint started on port 8080")
         
     except Exception as e:

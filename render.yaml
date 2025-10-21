@@ -6,7 +6,7 @@ services:
     plan: free
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: python qr.py
-    healthCheckPath: /health
+    healthCheckPath: /health  # Health endpoint запускается первым в main() для быстрого ответа
     envVars:
       - key: BOT_TOKEN
         sync: false

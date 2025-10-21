@@ -1306,6 +1306,17 @@ async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 def main():
     """Главная функция"""
+    
+    # 🚀 КРИТИЧНО: Запускаем health endpoint ПЕРВЫМ (до всех блокирующих операций)
+    # Render health check имеет таймаут 5 секунд, поэтому endpoint должен быть доступен немедленно
+    if os.getenv('RENDER'):
+        try:
+            from render_keep_alive import create_simple_health_endpoint
+            create_simple_health_endpoint()
+            logger.info("🌐 Health endpoint started BEFORE bot initialization")
+        except Exception as e:
+            logger.error(f"❌ Failed to start health endpoint: {e}")
+    
     if not BOT_TOKEN:
         logger.error("BOT_TOKEN not found in environment variables!")
         return
