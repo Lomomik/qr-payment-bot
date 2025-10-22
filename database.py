@@ -63,14 +63,20 @@ class Database:
             'database': url.path[1:],  # Убираем первый /
             'user': url.username,
             'password': url.password,
-            'sslmode': 'require'  # Render требует SSL
+            'sslmode': 'require',  # Render требует SSL
+            'connect_timeout': 10,  # Таймаут подключения
+            'keepalives': 1,  # Включить TCP keepalive
+            'keepalives_idle': 30,  # Начать keepalive через 30 сек
+            'keepalives_interval': 10,  # Интервал keepalive пакетов
+            'keepalives_count': 5  # Количество попыток keepalive
         }
         
         # Создаем connection pool для эффективности
+        # ThreadedConnectionPool безопаснее для asyncio
         try:
-            self.pool = psycopg2.pool.SimpleConnectionPool(
+            self.pool = psycopg2.pool.ThreadedConnectionPool(
                 minconn=1,
-                maxconn=10,
+                maxconn=5,  # Уменьшено с 10 до 5 для Supabase pooler
                 **self.pg_config
             )
             logger.info(f"✅ Connected to PostgreSQL: {self.pg_config['database']}")
@@ -87,16 +93,41 @@ class Database:
     def get_connection(self):
         """Контекстный менеджер для работы с подключением"""
         if self.db_type == 'postgresql':
-            conn = self.pool.getconn()
+            conn = None
             try:
+                conn = self.pool.getconn()
+                
+                # Проверяем что соединение живое (защита от мертвых соединений)
+                try:
+                    cursor = conn.cursor()
+                    cursor.execute('SELECT 1')
+                    cursor.close()
+                except Exception as check_error:
+                    logger.warning(f"Dead connection detected, reconnecting: {check_error}")
+                    # Соединение мертвое - закрываем и создаём новое
+                    try:
+                        conn.close()
+                    except:
+                        pass
+                    self.pool.putconn(conn, close=True)  # Удаляем из pool
+                    conn = self.pool.getconn()  # Получаем новое
+                
                 yield conn
                 conn.commit()
             except Exception as e:
-                conn.rollback()
+                if conn:
+                    try:
+                        conn.rollback()
+                    except:
+                        pass  # Rollback может упасть если соединение мертвое
                 logger.error(f"Database error: {e}")
                 raise
             finally:
-                self.pool.putconn(conn)
+                if conn:
+                    try:
+                        self.pool.putconn(conn)
+                    except Exception as e:
+                        logger.warning(f"Failed to return connection to pool: {e}")
         else:
             # SQLite
             conn = sqlite3.connect(self.db_path)
