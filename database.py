@@ -7,6 +7,7 @@
 import logging
 import os
 import sqlite3
+import time
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple
 from contextlib import contextmanager
@@ -53,7 +54,7 @@ class Database:
         self.init_db()
     
     def _init_postgresql(self):
-        """Инициализация PostgreSQL"""
+        """Инициализация PostgreSQL с retry механизмом"""
         # Парсим DATABASE_URL
         url = urlparse(DATABASE_URL)
         
@@ -63,26 +64,38 @@ class Database:
             'database': url.path[1:],  # Убираем первый /
             'user': url.username,
             'password': url.password,
-            'sslmode': 'require',  # Render требует SSL
+            'sslmode': 'require',  # Supabase требует SSL
             'connect_timeout': 10,  # Таймаут подключения
             'keepalives': 1,  # Включить TCP keepalive
-            'keepalives_idle': 30,  # Начать keepalive через 30 сек
-            'keepalives_interval': 10,  # Интервал keepalive пакетов
-            'keepalives_count': 5  # Количество попыток keepalive
+            'keepalives_idle': 10,  # Начать keepalive через 10 сек (было 30)
+            'keepalives_interval': 5,  # Интервал keepalive пакетов (было 10)
+            'keepalives_count': 3  # Количество попыток keepalive (было 5)
         }
         
         # Создаем connection pool для эффективности
         # ThreadedConnectionPool безопаснее для asyncio
-        try:
-            self.pool = psycopg2.pool.ThreadedConnectionPool(
-                minconn=1,
-                maxconn=5,  # Уменьшено с 10 до 5 для Supabase pooler
-                **self.pg_config
-            )
-            logger.info(f"✅ Connected to PostgreSQL: {self.pg_config['database']}")
-        except Exception as e:
-            logger.error(f"❌ PostgreSQL connection error: {e}")
-            raise
+        # Retry механизм для нестабильного Supabase pooler
+        max_retries = 5
+        retry_delay = 1  # Начальная задержка в секундах
+        
+        for attempt in range(max_retries):
+            try:
+                self.pool = psycopg2.pool.ThreadedConnectionPool(
+                    minconn=1,
+                    maxconn=3,  # Уменьшено с 5 до 3 (Pool Size = 15 на Nano compute)
+                    **self.pg_config
+                )
+                logger.info(f"✅ Connected to PostgreSQL: {self.pg_config['database']}")
+                return
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f"⚠️ PostgreSQL connection attempt {attempt + 1}/{max_retries} failed: {e}")
+                    logger.info(f"🔄 Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Экспоненциальная задержка: 1s, 2s, 4s, 8s
+                else:
+                    logger.error(f"❌ PostgreSQL connection failed after {max_retries} attempts: {e}")
+                    raise
     
     def _init_sqlite(self):
         """Инициализация SQLite"""
@@ -91,43 +104,67 @@ class Database:
     
     @contextmanager
     def get_connection(self):
-        """Контекстный менеджер для работы с подключением"""
+        """Контекстный менеджер для работы с подключением (с retry механизмом)"""
         if self.db_type == 'postgresql':
             conn = None
-            try:
-                conn = self.pool.getconn()
-                
-                # Проверяем что соединение живое (защита от мертвых соединений)
+            max_retries = 3
+            retry_delay = 0.5  # Начальная задержка в секундах
+            
+            for attempt in range(max_retries):
                 try:
-                    cursor = conn.cursor()
-                    cursor.execute('SELECT 1')
-                    cursor.close()
-                except Exception as check_error:
-                    logger.warning(f"Dead connection detected, reconnecting: {check_error}")
-                    # Соединение мертвое - закрываем и создаём новое
+                    conn = self.pool.getconn()
+                    
+                    # Проверяем что соединение живое (защита от мертвых соединений)
                     try:
-                        conn.close()
-                    except:
-                        pass
-                    self.pool.putconn(conn, close=True)  # Удаляем из pool
-                    conn = self.pool.getconn()  # Получаем новое
-                
-                yield conn
-                conn.commit()
-            except Exception as e:
-                if conn:
-                    try:
-                        conn.rollback()
-                    except:
-                        pass  # Rollback может упасть если соединение мертвое
-                logger.error(f"Database error: {e}")
-                raise
-            finally:
-                if conn:
-                    try:
-                        self.pool.putconn(conn)
-                    except Exception as e:
-                        logger.warning(f"Failed to return connection to pool: {e}")
+                        cursor = conn.cursor()
+                        cursor.execute('SELECT 1')
+                        cursor.close()
+                    except Exception as check_error:
+                        logger.warning(f"Dead connection detected, reconnecting: {check_error}")
+                        # Соединение мертвое - закрываем и создаём новое
+                        try:
+                            conn.close()
+                        except:
+                            pass
+                        self.pool.putconn(conn, close=True)  # Удаляем из pool
+                        
+                        # Если это не последняя попытка, пробуем снова
+                        if attempt < max_retries - 1:
+                            logger.info(f"🔄 Retry getting connection ({attempt + 1}/{max_retries})")
+                            time.sleep(retry_delay)
+                            retry_delay *= 2
+                            continue
+                        else:
+                            raise
+                    
+                    # Соединение живое, используем его
+                    yield conn
+                    conn.commit()
+                    break  # Успешно выполнили, выходим из цикла
+                    
+                except Exception as e:
+                    if conn:
+                        try:
+                            conn.rollback()
+                        except:
+                            pass  # Rollback может упасть если соединение мертвое
+                    
+                    # Если это ошибка соединения и не последняя попытка - пробуем снова
+                    if attempt < max_retries - 1 and ('Connection refused' in str(e) or 'timeout' in str(e).lower() or 'SSL' in str(e)):
+                        logger.warning(f"⚠️ Connection error (attempt {attempt + 1}/{max_retries}): {e}")
+                        logger.info(f"🔄 Retrying in {retry_delay} seconds...")
+                        time.sleep(retry_delay)
+                        retry_delay *= 2
+                        continue
+                    else:
+                        logger.error(f"Database error: {e}")
+                        raise
+                finally:
+                    if conn:
+                        try:
+                            self.pool.putconn(conn)
+                        except Exception as e:
+                            logger.warning(f"Failed to return connection to pool: {e}")
         else:
             # SQLite
             conn = sqlite3.connect(self.db_path)
