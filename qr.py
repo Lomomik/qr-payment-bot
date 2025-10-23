@@ -303,6 +303,9 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик команды /info"""
+    user_id = update.effective_user.id
+    is_admin = check_is_admin(user_id)
+    
     await update.message.reply_text(
         f'📋 **РЕКВИЗИТЫ СЧЕТА САЛОНА**\n\n'
         f'👤 **Получатель:** {OWNER_NAME}\n'
@@ -311,7 +314,7 @@ async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         f'💱 **Валюта:** CZK (чешские кроны)\n\n'
         f'💰 Для создания QR-кода нажмите соответствующую кнопку ниже',
         parse_mode='Markdown',
-        reply_markup=get_main_keyboard()
+        reply_markup=get_main_keyboard(is_admin)
     )
 
 async def payment_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -531,6 +534,9 @@ async def handle_custom_service(update: Update, context: ContextTypes.DEFAULT_TY
     formatted_amount = f"{amount:,.2f}".replace(',', ' ').replace('.', ',')
     
     # Отправляем QR-код
+    user_id = update.effective_user.id
+    is_admin = check_is_admin(user_id)
+    
     await context.bot.send_photo(
         chat_id=update.message.chat_id,
         photo=qr_image,
@@ -541,7 +547,7 @@ async def handle_custom_service(update: Update, context: ContextTypes.DEFAULT_TY
                f'🏦 Счет: {ACCOUNT_NUMBER}\n\n'
                f'📱 Покажите этот QR-код клиенту\n'
                f'✅ Клиент сканирует код в своем банковским приложением',
-        reply_markup=get_main_keyboard()
+        reply_markup=get_main_keyboard(is_admin)
     )
     
     # Записываем транзакцию в БД
@@ -666,6 +672,10 @@ async def handle_service_selection(update: Update, context: ContextTypes.DEFAULT
     
     # Удаляем предыдущее сообщение и отправляем QR-код
     await query.delete_message()
+    
+    user_id = update.effective_user.id
+    is_admin = check_is_admin(user_id)
+    
     await context.bot.send_photo(
         chat_id=query.message.chat_id,
         photo=qr_image,
@@ -676,7 +686,7 @@ async def handle_service_selection(update: Update, context: ContextTypes.DEFAULT
                f'🏦 Счет: {ACCOUNT_NUMBER}\n\n'
                f'📱 Покажите этот QR-код клиенту\n'
                f'✅ Клиент сканирует код в своем банковском приложении',
-        reply_markup=get_main_keyboard()
+        reply_markup=get_main_keyboard(is_admin)
     )
     
     # Записываем транзакцию в БД
@@ -1304,19 +1314,23 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     # Отправляем сообщение пользователю только если update доступен
     if update and update.effective_message:
         try:
+            user_id = update.effective_user.id
+            is_admin = check_is_admin(user_id)
             await update.effective_message.reply_text(
                 '❌ Произошла ошибка. Попробуйте начать заново.',
-                reply_markup=get_main_keyboard()
+                reply_markup=get_main_keyboard(is_admin)
             )
         except Exception as e:
             logger.error(f"Failed to send error message: {e}")
 
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик неизвестных команд"""
+    user_id = update.effective_user.id
+    is_admin = check_is_admin(user_id)
     await update.message.reply_text(
         '❓ Неизвестная команда!\n\n'
         '👇 Используйте кнопки ниже для навигации:',
-        reply_markup=get_main_keyboard()
+        reply_markup=get_main_keyboard(is_admin)
     )
 
 def main():
