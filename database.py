@@ -95,7 +95,10 @@ class Database:
                     retry_delay *= 2  # Экспоненциальная задержка: 1s, 2s, 4s, 8s
                 else:
                     logger.error(f"❌ PostgreSQL connection failed after {max_retries} attempts: {e}")
-                    raise
+                    logger.warning("⚠️ Switching to SQLite as fallback")
+                    self.db_type = 'sqlite'
+                    self._init_sqlite()
+                    return
     
     def _init_sqlite(self):
         """Инициализация SQLite"""
