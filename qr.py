@@ -126,6 +126,13 @@ def get_main_keyboard(show_admin: bool = False):
     
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
 
+def get_wake_button():
+    """Создает inline-кнопку для пробуждения бота"""
+    keyboard = [
+        [InlineKeyboardButton("🔄 Разбудить бота", url="https://qr-payment-bot.onrender.com")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
 def get_admin_keyboard():
     """Создает админское меню с кнопками"""
     keyboard = [
@@ -213,6 +220,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         '• Остается только подтвердить платеж\n\n'
         '👇 Выберите действие с помощью кнопок ниже:',
         reply_markup=get_main_keyboard(is_admin)
+    )
+    
+    # Отправляем дополнительное сообщение с кнопкой пробуждения бота
+    await update.message.reply_text(
+        '⚠️ <b>Если бот не отвечает больше минуты:</b>\n'
+        'Нажмите кнопку ниже чтобы разбудить бота',
+        parse_mode='HTML',
+        reply_markup=get_wake_button()
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
