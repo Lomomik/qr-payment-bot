@@ -297,7 +297,7 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
     
     await update.message.reply_text(
-        '.',
+        '🔧',
         reply_markup=get_admin_keyboard()
     )
 
